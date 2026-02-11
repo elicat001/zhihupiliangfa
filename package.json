@@ -1,0 +1,16 @@
+{
+  "name": "zhihu-auto-publisher",
+  "version": "1.0.0",
+  "description": "知乎自动发布工具 - 支持AI生成文章、多账号管理、定时发布",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && python run.py",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "install:all": "cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
+    "setup": "cd backend && python -m playwright install chromium"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

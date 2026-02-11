@@ -1,0 +1,1332 @@
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  Card,
+  Form,
+  Input,
+  Select,
+  InputNumber,
+  Button,
+  Row,
+  Col,
+  Typography,
+  Tag,
+  Divider,
+  Space,
+  message,
+  Spin,
+  Empty,
+  Modal,
+  Tabs,
+  Progress,
+  List,
+  Steps,
+  Alert,
+} from 'antd';
+import {
+  RobotOutlined,
+  SaveOutlined,
+  SendOutlined,
+  ReloadOutlined,
+  CopyOutlined,
+  TagsOutlined,
+  FileTextOutlined,
+  OrderedListOutlined,
+  EditOutlined,
+  CheckCircleOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
+import { useArticleStore } from '../../stores/articleStore';
+import { useAccountStore } from '../../stores/accountStore';
+import { articleAPI, publishAPI, templateAPI } from '../../services/api';
+import type {
+  GenerateParams,
+  GeneratedArticle,
+  PromptTemplate,
+  SeriesOutlineResponse,
+  SeriesOutlineArticle,
+  Article,
+  AgentGenerateParams,
+} from '../../utils/types';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+
+/** AI 提供商选项（需与后端支持的提供商一致） */
+const providerOptions = [
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'OpenAI (GPT-4)', value: 'openai' },
+  { label: 'Claude', value: 'claude' },
+  { label: '通义千问 (Qwen)', value: 'qwen' },
+  { label: '智谱 GLM', value: 'zhipu' },
+  { label: '月之暗面 Kimi', value: 'moonshot' },
+  { label: '豆包 (Doubao)', value: 'doubao' },
+];
+
+/** 文章风格选项 */
+const styleOptions = [
+  { label: '专业严谨', value: 'professional' },
+  { label: '轻松活泼', value: 'casual' },
+  { label: '幽默风趣', value: 'humorous' },
+  { label: '学术论文', value: 'academic' },
+];
+
+/** 字数选项 */
+const wordCountOptions = [
+  { label: '短文 (500字)', value: 500 },
+  { label: '中等 (1000字)', value: 1000 },
+  { label: '长文 (1500字)', value: 1500 },
+  { label: '深度 (2000字)', value: 2000 },
+  { label: '超长 (3000字)', value: 3000 },
+];
+
+/** 简易Markdown渲染 - 把基础的标记转换为HTML */
+const renderMarkdown = (text: string): string => {
+  if (!text) return '';
+  let html = text
+    // 标题
+    .replace(/^### (.+)$/gm, '<h3 style="color:#e8e8e8;margin:16px 0 8px">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="color:#e8e8e8;margin:20px 0 10px">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="color:#e8e8e8;margin:24px 0 12px">$1</h1>')
+    // 加粗
+    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e8e8e8">$1</strong>')
+    // 斜体
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // 代码块
+    .replace(/```[\s\S]*?```/g, (match) => {
+      const code = match.replace(/```\w*\n?/, '').replace(/\n?```$/, '');
+      return `<pre style="background:#141414;padding:12px;border-radius:6px;overflow-x:auto;margin:12px 0"><code style="color:#69b1ff">${code}</code></pre>`;
+    })
+    // 行内代码
+    .replace(/`(.+?)`/g, '<code style="background:#141414;padding:2px 6px;border-radius:3px;color:#69b1ff">$1</code>')
+    // 无序列表
+    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;margin-left:20px">$1</li>')
+    // 段落（双换行）
+    .replace(/\n\n/g, '</p><p style="margin:8px 0;line-height:1.8">')
+    // 单换行
+    .replace(/\n/g, '<br/>');
+  return `<p style="margin:8px 0;line-height:1.8">${html}</p>`;
+};
+
+/** CSS keyframe animation for pulsing cursor (injected once) */
+const cursorStyleId = 'streaming-cursor-style';
+if (typeof document !== 'undefined' && !document.getElementById(cursorStyleId)) {
+  const style = document.createElement('style');
+  style.id = cursorStyleId;
+  style.textContent = `
+    @keyframes streamingCursorBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+const ArticleGenerate: React.FC = () => {
+  const [form] = Form.useForm();
+  const { generatedArticle, saveArticle, clearGenerated } =
+    useArticleStore();
+  const [saving, setSaving] = useState(false);
+  const { accounts, fetchAccounts: loadAccounts } = useAccountStore();
+  const [publishModalVisible, setPublishModalVisible] = useState(false);
+  const [publishAccountId, setPublishAccountId] = useState<number | undefined>(undefined);
+  const [publishLoading, setPublishLoading] = useState(false);
+
+  // ---- 流式生成相关状态 ----
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // ---- 内容模板相关状态 ----
+  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(undefined);
+
+  // ---- 系列文章生成相关状态 ----
+  const [activeTab, setActiveTab] = useState<string>('single');
+  const [seriesForm] = Form.useForm();
+  const [seriesOutline, setSeriesOutline] = useState<SeriesOutlineResponse | null>(null);
+  const [seriesOutlineLoading, setSeriesOutlineLoading] = useState(false);
+  const [seriesGenerating, setSeriesGenerating] = useState(false);
+  const [seriesProgress, setSeriesProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [seriesArticles, setSeriesArticles] = useState<Article[]>([]);
+
+  // ---- 智能体生成相关状态 ----
+  const [agentForm] = Form.useForm();
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentArticles, setAgentArticles] = useState<Article[]>([]);
+  const [agentSourceArticles, setAgentSourceArticles] = useState<Article[]>([]);
+  const [agentSourceLoading, setAgentSourceLoading] = useState(false);
+
+  /** 加载已有文章列表（用于智能体选择参考文章） */
+  const loadSourceArticles = async () => {
+    setAgentSourceLoading(true);
+    try {
+      const res = await articleAPI.list({ page: 1, page_size: 100 });
+      setAgentSourceArticles(res.data.items || []);
+    } catch {
+      // 静默
+    } finally {
+      setAgentSourceLoading(false);
+    }
+  };
+
+  /** 智能体生成 */
+  const handleAgentGenerate = async () => {
+    try {
+      const values = await agentForm.validateFields();
+      setAgentLoading(true);
+      setAgentArticles([]);
+
+      const res = await articleAPI.agentGenerate({
+        article_ids: values.articleIds,
+        count: values.agentCount,
+        style: values.agentStyle || undefined,
+        word_count: values.agentWordCount,
+        ai_provider: values.agentProvider,
+      });
+
+      setAgentArticles(res.data);
+      message.success(`智能体成功生成 ${res.data.length} 篇文章！`);
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      const detail = error?.response?.data?.detail;
+      message.error(detail || '智能体生成失败，请重试');
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
+  /** 加载模板列表 */
+  const loadTemplates = async () => {
+    try {
+      const res = await templateAPI.list();
+      setTemplates(res.data);
+    } catch {
+      // 静默失败，模板功能为可选
+    }
+  };
+
+  /** 选择模板后填充默认值 */
+  const handleTemplateChange = (templateId: number | undefined) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const tpl = templates.find((t) => t.id === templateId);
+    if (tpl) {
+      form.setFieldsValue({
+        style: tpl.default_style,
+        wordCount: tpl.default_word_count,
+      });
+    }
+  };
+
+  React.useEffect(() => {
+    loadAccounts();
+    loadTemplates();
+    loadSourceArticles();
+  }, []);
+
+  /** 流式生成文章 */
+  const handleGenerate = useCallback(async () => {
+    try {
+      const values = await form.validateFields();
+      const params: GenerateParams = {
+        topic: values.topic,
+        style: values.style,
+        word_count: values.wordCount,
+        ai_provider: values.provider,
+      };
+
+      // 清除之前的生成结果
+      clearGenerated();
+      setStreamingContent('');
+      setIsStreaming(true);
+
+      // 创建 AbortController 以便在需要时中断流
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const response = await fetch('/api/articles/generate-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: 流式生成请求失败`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法获取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // 按 SSE 协议分割事件（以双换行分隔）
+        const parts = buffer.split('\n\n');
+        // 最后一个 part 可能是不完整的，留在 buffer 里
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const trimmed = part.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+
+          const jsonStr = trimmed.slice(6); // 去掉 "data: "
+          try {
+            const event = JSON.parse(jsonStr);
+
+            if (event.type === 'content') {
+              // 增量追加内容
+              setStreamingContent((prev) => prev + event.text);
+            } else if (event.type === 'done') {
+              // 生成完毕，设置最终文章数据
+              const article = event.article as GeneratedArticle;
+              useArticleStore.setState({ generatedArticle: article });
+              setIsStreaming(false);
+              setStreamingContent('');
+              message.success('文章生成成功！');
+            } else if (event.type === 'error') {
+              setIsStreaming(false);
+              message.error(event.message || '文章生成失败');
+            }
+          } catch {
+            // 忽略解析错误的事件
+          }
+        }
+      }
+
+      // 如果循环结束但还没收到 done 事件
+      setIsStreaming(false);
+    } catch (error: any) {
+      if (error?.errorFields) return; // 表单验证失败
+      if (error?.name === 'AbortError') {
+        message.info('已取消生成');
+      } else {
+        message.error('文章生成失败，请重试');
+      }
+      setIsStreaming(false);
+    }
+  }, [form, clearGenerated]);
+
+  /** 保存为草稿 */
+  const handleSaveDraft = async () => {
+    if (!generatedArticle) return;
+    setSaving(true);
+    try {
+      await saveArticle({
+        title: generatedArticle.title,
+        content: generatedArticle.content,
+        tags: generatedArticle.tags,
+        summary: generatedArticle.summary,
+      });
+      message.success('草稿保存成功！');
+      clearGenerated();
+    } catch {
+      message.error('保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** 直接发布 - 先保存，再选账号发布 */
+  const handlePublish = async () => {
+    if (!generatedArticle) return;
+    setPublishModalVisible(true);
+  };
+
+  /** 确认发布 */
+  const handleConfirmPublish = async () => {
+    if (!generatedArticle || !publishAccountId) {
+      message.warning('请选择发布账号');
+      return;
+    }
+    setPublishLoading(true);
+    try {
+      // 先保存文章
+      const articleData = {
+        title: generatedArticle.title,
+        content: generatedArticle.content,
+        tags: generatedArticle.tags,
+        summary: generatedArticle.summary,
+      };
+      const res = await articleAPI.create(articleData);
+      const savedArticle = res.data;
+
+      // 创建发布任务
+      await publishAPI.now({
+        article_id: savedArticle.id,
+        account_id: publishAccountId,
+      });
+
+      message.success('发布任务已创建！');
+      setPublishModalVisible(false);
+      setPublishAccountId(undefined);
+      clearGenerated();
+    } catch {
+      message.error('发布失败');
+    } finally {
+      setPublishLoading(false);
+    }
+  };
+
+  /** 复制内容到剪贴板 */
+  const handleCopy = () => {
+    if (!generatedArticle) return;
+    const text = `# ${generatedArticle.title}\n\n${generatedArticle.content}`;
+    navigator.clipboard.writeText(text).then(() => {
+      message.success('已复制到剪贴板');
+    });
+  };
+
+  // ==================== 系列文章处理函数 ====================
+
+  /** 生成系列大纲 */
+  const handleGenerateOutline = async () => {
+    try {
+      const values = await seriesForm.validateFields(['seriesTopic', 'seriesCount', 'seriesProvider']);
+      setSeriesOutlineLoading(true);
+      setSeriesOutline(null);
+      setSeriesArticles([]);
+
+      const res = await articleAPI.seriesOutline({
+        topic: values.seriesTopic,
+        count: values.seriesCount,
+        ai_provider: values.seriesProvider,
+      });
+      setSeriesOutline(res.data);
+      message.success('系列大纲生成成功！');
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error('系列大纲生成失败，请重试');
+    } finally {
+      setSeriesOutlineLoading(false);
+    }
+  };
+
+  /** 更新大纲中某篇文章的标题 */
+  const handleOutlineTitleChange = (index: number, newTitle: string) => {
+    if (!seriesOutline) return;
+    const updated = { ...seriesOutline };
+    updated.articles = [...updated.articles];
+    updated.articles[index] = { ...updated.articles[index], title: newTitle };
+    setSeriesOutline(updated);
+  };
+
+  /** 批量生成系列文章 */
+  const handleSeriesGenerate = async () => {
+    if (!seriesOutline) return;
+    try {
+      const values = await seriesForm.validateFields(['seriesStyle', 'seriesWordCount', 'seriesProvider']);
+      setSeriesGenerating(true);
+      setSeriesProgress({ current: 0, total: seriesOutline.articles.length });
+      setSeriesArticles([]);
+
+      const res = await articleAPI.seriesGenerate({
+        series_title: seriesOutline.series_title,
+        articles: seriesOutline.articles.map((a) => ({
+          title: a.title,
+          description: a.description,
+          key_points: a.key_points,
+        })),
+        style: values.seriesStyle,
+        word_count: values.seriesWordCount,
+        ai_provider: values.seriesProvider,
+      });
+
+      setSeriesArticles(res.data);
+      setSeriesProgress({ current: res.data.length, total: seriesOutline.articles.length });
+      message.success(`成功生成 ${res.data.length} 篇系列文章！`);
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error('系列文章生成失败，请重试');
+    } finally {
+      setSeriesGenerating(false);
+    }
+  };
+
+  /** 判断是否正在加载中（流式生成或传统生成） */
+  const isLoading = isStreaming;
+
+  return (
+    <div>
+    <Tabs
+      activeKey={activeTab}
+      onChange={setActiveTab}
+      style={{ marginBottom: 16 }}
+      items={[
+        {
+          key: 'single',
+          label: (
+            <span>
+              <FileTextOutlined style={{ marginRight: 4 }} />
+              单篇生成
+            </span>
+          ),
+        },
+        {
+          key: 'series',
+          label: (
+            <span>
+              <OrderedListOutlined style={{ marginRight: 4 }} />
+              系列生成
+            </span>
+          ),
+        },
+        {
+          key: 'agent',
+          label: (
+            <span>
+              <ThunderboltOutlined style={{ marginRight: 4 }} />
+              智能体生成
+            </span>
+          ),
+        },
+      ]}
+    />
+
+    {activeTab === 'single' ? (
+    <Row gutter={[16, 16]}>
+      {/* 左侧：生成表单 */}
+      <Col xs={24} lg={10}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <RobotOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+              AI 文章生成
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{
+              style: 'professional',
+              wordCount: 1000,
+              provider: 'deepseek',
+            }}
+          >
+            {/* 主题输入 */}
+            <Form.Item
+              label="文章主题"
+              name="topic"
+              rules={[{ required: true, message: '请输入文章主题' }]}
+            >
+              <TextArea
+                rows={3}
+                placeholder="请输入文章主题或关键词，如：深度学习在自然语言处理中的应用"
+                maxLength={500}
+                showCount
+                style={{ background: '#141414', borderColor: '#2a2a3e' }}
+              />
+            </Form.Item>
+
+            {/* 文章风格 */}
+            <Form.Item
+              label="写作风格"
+              name="style"
+              rules={[{ required: true, message: '请选择写作风格' }]}
+            >
+              <Select
+                options={styleOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 目标字数 */}
+            <Form.Item
+              label="目标字数"
+              name="wordCount"
+              rules={[{ required: true, message: '请选择目标字数' }]}
+            >
+              <Select
+                options={wordCountOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* AI提供商 */}
+            <Form.Item
+              label="AI 提供商"
+              name="provider"
+              rules={[{ required: true, message: '请选择AI提供商' }]}
+            >
+              <Select
+                options={providerOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 内容模板选择 */}
+            <Form.Item label="模板">
+              <Select
+                placeholder="选择内容模板（可选）"
+                value={selectedTemplateId}
+                onChange={handleTemplateChange}
+                allowClear
+                style={{ width: '100%' }}
+                options={templates.map((t) => ({
+                  label: t.name + (t.description ? ` - ${t.description}` : ''),
+                  value: t.id,
+                }))}
+              />
+            </Form.Item>
+
+            {/* 生成按钮 */}
+            <Form.Item>
+              <Button
+                type="primary"
+                icon={<RobotOutlined />}
+                size="large"
+                block
+                loading={isLoading}
+                onClick={handleGenerate}
+                style={{
+                  height: 48,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #1677ff 0%, #4096ff 100%)',
+                }}
+              >
+                {isLoading ? 'AI 正在生成中...' : '一键生成文章'}
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </Col>
+
+      {/* 右侧：生成结果预览 */}
+      <Col xs={24} lg={14}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <FilePreviewIcon />
+              生成结果预览
+            </span>
+          }
+          extra={
+            generatedArticle ? (
+              <Space>
+                <Button
+                  icon={<CopyOutlined />}
+                  size="small"
+                  onClick={handleCopy}
+                >
+                  复制
+                </Button>
+              </Space>
+            ) : null
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+            minHeight: 500,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          {isStreaming ? (
+            /* ---- 流式生成中：实时显示内容 + 脉冲光标 ---- */
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 16,
+                  color: '#1677ff',
+                  fontSize: 14,
+                }}
+              >
+                <Spin size="small" />
+                <Text style={{ color: '#1677ff' }}>AI 正在实时生成中...</Text>
+              </div>
+              <div
+                style={{
+                  color: '#d0d0d0',
+                  lineHeight: 1.8,
+                  maxHeight: 500,
+                  overflowY: 'auto',
+                  paddingRight: 8,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace',
+                  fontSize: 14,
+                }}
+              >
+                {streamingContent}
+                {/* 脉冲光标指示器 */}
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 2,
+                    height: 18,
+                    background: '#1677ff',
+                    marginLeft: 2,
+                    verticalAlign: 'text-bottom',
+                    animation: 'streamingCursorBlink 1s ease-in-out infinite',
+                  }}
+                />
+              </div>
+            </div>
+          ) : generatedArticle ? (
+            <div>
+              {/* 文章标题 */}
+              <Title
+                level={3}
+                style={{ color: '#e8e8e8', marginBottom: 12 }}
+              >
+                {generatedArticle.title}
+              </Title>
+
+              {/* 文章元信息 */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  marginBottom: 16,
+                  color: '#a0a0a0',
+                  fontSize: 13,
+                }}
+              >
+                <span>字数：{generatedArticle.word_count}</span>
+              </div>
+
+              {/* 标签 */}
+              {generatedArticle.tags && generatedArticle.tags.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <TagsOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+                  {generatedArticle.tags.map((tag, i) => (
+                    <Tag key={i} color="blue" style={{ marginBottom: 4 }}>
+                      {tag}
+                    </Tag>
+                  ))}
+                </div>
+              )}
+
+              <Divider style={{ borderColor: '#2a2a3e' }} />
+
+              {/* 文章正文（Markdown渲染） */}
+              <div
+                style={{
+                  color: '#d0d0d0',
+                  lineHeight: 1.8,
+                  maxHeight: 500,
+                  overflowY: 'auto',
+                  paddingRight: 8,
+                }}
+                dangerouslySetInnerHTML={{
+                  __html: renderMarkdown(generatedArticle.content),
+                }}
+              />
+
+              <Divider style={{ borderColor: '#2a2a3e' }} />
+
+              {/* 操作按钮 */}
+              <Space size="middle" wrap>
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={handleSaveDraft}
+                  loading={saving}
+                  style={{ borderRadius: 6 }}
+                >
+                  保存草稿
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<SendOutlined />}
+                  onClick={handlePublish}
+                  loading={saving}
+                  style={{
+                    borderRadius: 6,
+                    background: '#52c41a',
+                    borderColor: '#52c41a',
+                  }}
+                >
+                  直接发布
+                </Button>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={handleGenerate}
+                  loading={isLoading}
+                  style={{ borderRadius: 6 }}
+                >
+                  重新生成
+                </Button>
+              </Space>
+            </div>
+          ) : (
+            <Empty
+              description={
+                <Text style={{ color: '#666' }}>
+                  在左侧填写主题和参数后，点击"一键生成文章"
+                </Text>
+              }
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 400,
+              }}
+            />
+          )}
+        </Card>
+      </Col>
+      {/* 发布账号选择弹窗 */}
+      <Modal
+        title="选择发布账号"
+        open={publishModalVisible}
+        onOk={handleConfirmPublish}
+        onCancel={() => setPublishModalVisible(false)}
+        confirmLoading={publishLoading}
+        okText="确认发布"
+        cancelText="取消"
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text style={{ color: '#a0a0a0' }}>
+            文章将保存并立即创建发布任务
+          </Text>
+        </div>
+        <Select
+          placeholder="选择发布账号"
+          value={publishAccountId}
+          onChange={setPublishAccountId}
+          style={{ width: '100%' }}
+          options={accounts.filter(a => a.login_status === 'logged_in').map(a => ({
+            label: a.nickname || '未命名',
+            value: a.id,
+          }))}
+        />
+      </Modal>
+    </Row>
+    ) : (
+    /* ==================== 系列文章生成 Tab ==================== */
+    <Row gutter={[16, 16]}>
+      {/* 左侧：系列参数表单 */}
+      <Col xs={24} lg={10}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <OrderedListOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+              系列文章生成
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          <Form
+            form={seriesForm}
+            layout="vertical"
+            initialValues={{
+              seriesCount: 5,
+              seriesProvider: 'deepseek',
+              seriesStyle: 'professional',
+              seriesWordCount: 1500,
+            }}
+          >
+            {/* 系列主题 */}
+            <Form.Item
+              label="系列主题"
+              name="seriesTopic"
+              rules={[{ required: true, message: '请输入系列主题' }]}
+            >
+              <Input.TextArea
+                rows={3}
+                placeholder="请输入系列文章的总主题，如：Python 从入门到精通"
+                maxLength={200}
+                showCount
+                style={{ background: '#141414', borderColor: '#2a2a3e' }}
+              />
+            </Form.Item>
+
+            {/* 文章数量 */}
+            <Form.Item
+              label="文章数量"
+              name="seriesCount"
+              rules={[{ required: true, message: '请选择文章数量' }]}
+            >
+              <InputNumber
+                min={2}
+                max={20}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* AI提供商 */}
+            <Form.Item
+              label="AI 提供商"
+              name="seriesProvider"
+              rules={[{ required: true, message: '请选择AI提供商' }]}
+            >
+              <Select
+                options={providerOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 写作风格 */}
+            <Form.Item
+              label="写作风格"
+              name="seriesStyle"
+              rules={[{ required: true, message: '请选择写作风格' }]}
+            >
+              <Select
+                options={styleOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 每篇字数 */}
+            <Form.Item
+              label="每篇目标字数"
+              name="seriesWordCount"
+              rules={[{ required: true, message: '请选择目标字数' }]}
+            >
+              <Select
+                options={wordCountOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 生成大纲按钮 */}
+            <Form.Item>
+              <Button
+                type="primary"
+                icon={<OrderedListOutlined />}
+                size="large"
+                block
+                loading={seriesOutlineLoading}
+                onClick={handleGenerateOutline}
+                style={{
+                  height: 48,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #1677ff 0%, #4096ff 100%)',
+                }}
+              >
+                {seriesOutlineLoading ? '正在生成大纲...' : '生成系列大纲'}
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </Col>
+
+      {/* 右侧：大纲预览与文章生成 */}
+      <Col xs={24} lg={14}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <FilePreviewIcon />
+              系列大纲 & 进度
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+            minHeight: 500,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          {seriesOutlineLoading ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 400,
+                gap: 16,
+              }}
+            >
+              <Spin size="large" />
+              <Text style={{ color: '#a0a0a0' }}>
+                AI 正在规划系列文章大纲，请稍候...
+              </Text>
+            </div>
+          ) : seriesOutline ? (
+            <div>
+              {/* 系列标题和描述 */}
+              <Title level={4} style={{ color: '#e8e8e8', marginBottom: 8 }}>
+                {seriesOutline.series_title}
+              </Title>
+              <Text style={{ color: '#a0a0a0', display: 'block', marginBottom: 16 }}>
+                {seriesOutline.description}
+              </Text>
+
+              <Divider style={{ borderColor: '#2a2a3e' }} />
+
+              {/* 大纲文章列表（可编辑标题） */}
+              <List
+                dataSource={seriesOutline.articles}
+                renderItem={(item: SeriesOutlineArticle, index: number) => (
+                  <List.Item
+                    style={{
+                      borderBottom: '1px solid #2a2a3e',
+                      padding: '12px 0',
+                    }}
+                  >
+                    <div style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Tag color="blue" style={{ marginRight: 0 }}>
+                          第 {item.order} 篇
+                        </Tag>
+                        <Input
+                          value={item.title}
+                          onChange={(e) => handleOutlineTitleChange(index, e.target.value)}
+                          style={{
+                            flex: 1,
+                            background: '#141414',
+                            borderColor: '#2a2a3e',
+                            color: '#e8e8e8',
+                          }}
+                          disabled={seriesGenerating}
+                        />
+                      </div>
+                      <Text style={{ color: '#a0a0a0', fontSize: 13, display: 'block', marginBottom: 4 }}>
+                        {item.description}
+                      </Text>
+                      <div>
+                        {item.key_points.map((point, pi) => (
+                          <Tag key={pi} style={{ marginBottom: 4 }}>
+                            {point}
+                          </Tag>
+                        ))}
+                      </div>
+                      {/* 已生成标记 */}
+                      {seriesArticles[index] && (
+                        <div style={{ marginTop: 8 }}>
+                          <Tag color="green" icon={<CheckCircleOutlined />}>
+                            已生成 - {seriesArticles[index].word_count} 字
+                          </Tag>
+                        </div>
+                      )}
+                    </div>
+                  </List.Item>
+                )}
+              />
+
+              <Divider style={{ borderColor: '#2a2a3e' }} />
+
+              {/* 生成进度 */}
+              {seriesGenerating && (
+                <div style={{ marginBottom: 16 }}>
+                  <Text style={{ color: '#a0a0a0', display: 'block', marginBottom: 8 }}>
+                    正在生成第 {seriesProgress.current + 1} / {seriesProgress.total} 篇...
+                  </Text>
+                  <Progress
+                    percent={Math.round((seriesProgress.current / seriesProgress.total) * 100)}
+                    status="active"
+                    strokeColor="#1677ff"
+                  />
+                </div>
+              )}
+
+              {/* 生成完成 */}
+              {seriesArticles.length > 0 && !seriesGenerating && (
+                <div style={{ marginBottom: 16 }}>
+                  <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontSize: 14, padding: '4px 12px' }}>
+                    全部 {seriesArticles.length} 篇文章已生成并保存为草稿
+                  </Tag>
+                </div>
+              )}
+
+              {/* 批量生成按钮 */}
+              <Button
+                type="primary"
+                icon={<RobotOutlined />}
+                size="large"
+                block
+                loading={seriesGenerating}
+                onClick={handleSeriesGenerate}
+                disabled={seriesArticles.length === seriesOutline.articles.length}
+                style={{
+                  height: 48,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  background: seriesArticles.length === seriesOutline.articles.length
+                    ? undefined
+                    : 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)',
+                }}
+              >
+                {seriesGenerating
+                  ? `正在生成中 (${seriesProgress.current}/${seriesProgress.total})...`
+                  : seriesArticles.length === seriesOutline.articles.length
+                  ? '全部文章已生成'
+                  : '批量生成文章'}
+              </Button>
+            </div>
+          ) : (
+            <Empty
+              description={
+                <Text style={{ color: '#666' }}>
+                  在左侧填写系列主题和参数后，点击"生成系列大纲"
+                </Text>
+              }
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 400,
+              }}
+            />
+          )}
+        </Card>
+      </Col>
+    </Row>
+    ) : activeTab === 'agent' ? (
+    /* ==================== 智能体生成 Tab ==================== */
+    <Row gutter={[16, 16]}>
+      {/* 左侧：智能体参数 */}
+      <Col xs={24} lg={10}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <ThunderboltOutlined style={{ marginRight: 8, color: '#faad14' }} />
+              智能体生成
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          <Alert
+            message="选择已有文章作为参考，智能体将自动分析主题和风格，规划并生成全新的相关文章"
+            type="info"
+            showIcon
+            style={{ marginBottom: 20, background: '#111a2c', borderColor: '#15325b' }}
+          />
+          <Form
+            form={agentForm}
+            layout="vertical"
+            initialValues={{
+              agentCount: 5,
+              agentProvider: 'deepseek',
+              agentWordCount: 1500,
+            }}
+          >
+            {/* 选择参考文章 */}
+            <Form.Item
+              label="选择参考文章"
+              name="articleIds"
+              rules={[{ required: true, message: '请选择至少一篇参考文章' }]}
+            >
+              <Select
+                mode="multiple"
+                placeholder="选择 1-10 篇已有文章作为参考"
+                loading={agentSourceLoading}
+                maxCount={10}
+                style={{ width: '100%' }}
+                optionFilterProp="label"
+                options={agentSourceArticles.map((a) => ({
+                  label: `[${a.id}] ${a.title}`,
+                  value: a.id,
+                }))}
+              />
+            </Form.Item>
+
+            {/* 生成数量 */}
+            <Form.Item
+              label="生成文章数量"
+              name="agentCount"
+              rules={[{ required: true, message: '请输入数量' }]}
+            >
+              <InputNumber min={1} max={20} style={{ width: '100%' }} />
+            </Form.Item>
+
+            {/* AI提供商 */}
+            <Form.Item
+              label="AI 提供商"
+              name="agentProvider"
+              rules={[{ required: true, message: '请选择AI提供商' }]}
+            >
+              <Select options={providerOptions} style={{ width: '100%' }} />
+            </Form.Item>
+
+            {/* 写作风格 */}
+            <Form.Item
+              label="写作风格（留空则 AI 自动推荐）"
+              name="agentStyle"
+            >
+              <Select
+                allowClear
+                placeholder="留空 = AI 自动推荐风格"
+                options={styleOptions}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 每篇字数 */}
+            <Form.Item
+              label="每篇目标字数"
+              name="agentWordCount"
+              rules={[{ required: true, message: '请选择字数' }]}
+            >
+              <Select options={wordCountOptions} style={{ width: '100%' }} />
+            </Form.Item>
+
+            {/* 生成按钮 */}
+            <Form.Item>
+              <Button
+                type="primary"
+                icon={<ThunderboltOutlined />}
+                size="large"
+                block
+                loading={agentLoading}
+                onClick={handleAgentGenerate}
+                style={{
+                  height: 48,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #faad14 0%, #ffc53d 100%)',
+                  borderColor: '#faad14',
+                  color: '#000',
+                }}
+              >
+                {agentLoading ? '智能体正在工作中...' : '一键智能生成'}
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </Col>
+
+      {/* 右侧：生成结果 */}
+      <Col xs={24} lg={14}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <FilePreviewIcon />
+              智能体生成结果
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+            minHeight: 500,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          {agentLoading ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 400,
+                gap: 16,
+              }}
+            >
+              <Spin size="large" />
+              <Text style={{ color: '#a0a0a0' }}>
+                智能体正在分析参考文章、规划大纲并逐篇生成中...
+              </Text>
+              <Steps
+                direction="vertical"
+                size="small"
+                current={-1}
+                status="process"
+                items={[
+                  { title: '分析参考文章', description: '提取主题、风格、关键词' },
+                  { title: '规划文章大纲', description: '设计差异化角度和结构' },
+                  { title: '逐篇生成文章', description: '批量生成完整文章' },
+                ]}
+                style={{ marginTop: 16 }}
+              />
+            </div>
+          ) : agentArticles.length > 0 ? (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontSize: 14, padding: '4px 12px' }}>
+                  智能体成功生成 {agentArticles.length} 篇文章，已保存为草稿
+                </Tag>
+              </div>
+              <List
+                dataSource={agentArticles}
+                renderItem={(item: Article, index: number) => (
+                  <List.Item
+                    style={{
+                      borderBottom: '1px solid #2a2a3e',
+                      padding: '12px 0',
+                    }}
+                  >
+                    <div style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Tag color="blue">第 {index + 1} 篇</Tag>
+                        <Text strong style={{ color: '#e8e8e8', flex: 1 }}>
+                          {item.title}
+                        </Text>
+                        <Tag>{item.word_count} 字</Tag>
+                      </div>
+                      <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+                        {item.summary}
+                      </Text>
+                      {item.tags && item.tags.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          {item.tags.map((tag, ti) => (
+                            <Tag key={ti} style={{ marginBottom: 4 }}>{tag}</Tag>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </List.Item>
+                )}
+              />
+            </div>
+          ) : (
+            <Empty
+              description={
+                <Text style={{ color: '#666' }}>
+                  选择参考文章后，点击"一键智能生成"，智能体将自动分析并批量生成相关文章
+                </Text>
+              }
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 400,
+              }}
+            />
+          )}
+        </Card>
+      </Col>
+    </Row>
+    ) : null}
+    </div>
+  );
+};
+
+/** 文件预览图标组件 */
+const FilePreviewIcon: React.FC = () => (
+  <FileTextOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+);
+
+export default ArticleGenerate;
