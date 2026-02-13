@@ -21,6 +21,7 @@ import {
   List,
   Steps,
   Alert,
+  Switch,
 } from 'antd';
 import {
   RobotOutlined,
@@ -34,6 +35,7 @@ import {
   EditOutlined,
   CheckCircleOutlined,
   ThunderboltOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { useArticleStore } from '../../stores/articleStore';
 import { useAccountStore } from '../../stores/accountStore';
@@ -46,6 +48,7 @@ import type {
   SeriesOutlineArticle,
   Article,
   AgentGenerateParams,
+  StoryGenerateParams,
 } from '../../utils/types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -56,6 +59,7 @@ const providerOptions = [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'OpenAI (GPT-4)', value: 'openai' },
   { label: 'Claude', value: 'claude' },
+  { label: 'Google Gemini', value: 'gemini' },
   { label: '通义千问 (Qwen)', value: 'qwen' },
   { label: '智谱 GLM', value: 'zhipu' },
   { label: '月之暗面 Kimi', value: 'moonshot' },
@@ -83,6 +87,14 @@ const wordCountOptions = [
 const renderMarkdown = (text: string): string => {
   if (!text) return '';
   let html = text
+    // 图片 ![alt](url) → <figure><img></figure>
+    .replace(
+      /!\[([^\]]*)\]\(([^)]+)\)/g,
+      '<figure style="text-align:center;margin:16px 0">'
+      + '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px">'
+      + '<figcaption style="color:#999;font-size:13px;margin-top:6px">$1</figcaption>'
+      + '</figure>'
+    )
     // 标题
     .replace(/^### (.+)$/gm, '<h3 style="color:#e8e8e8;margin:16px 0 8px">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 style="color:#e8e8e8;margin:20px 0 10px">$1</h2>')
@@ -156,6 +168,12 @@ const ArticleGenerate: React.FC = () => {
   const [agentSourceArticles, setAgentSourceArticles] = useState<Article[]>([]);
   const [agentSourceLoading, setAgentSourceLoading] = useState(false);
 
+  // ---- 故事生成相关状态 ----
+  const [storyForm] = Form.useForm();
+  const [storyLoading, setStoryLoading] = useState(false);
+  const [storyArticles, setStoryArticles] = useState<Article[]>([]);
+  const [storyPhase, setStoryPhase] = useState<number>(0);
+
   /** 加载已有文章列表（用于智能体选择参考文章） */
   const loadSourceArticles = async () => {
     setAgentSourceLoading(true);
@@ -184,14 +202,52 @@ const ArticleGenerate: React.FC = () => {
         ai_provider: values.agentProvider,
       });
 
-      setAgentArticles(res.data);
-      message.success(`智能体成功生成 ${res.data.length} 篇文章！`);
+      const articles = res.data ?? [];
+      setAgentArticles(articles);
+      message.success(`智能体成功生成 ${articles.length} 篇文章！`);
     } catch (error: any) {
       if (error?.errorFields) return;
       const detail = error?.response?.data?.detail;
       message.error(detail || '智能体生成失败，请重试');
     } finally {
       setAgentLoading(false);
+    }
+  };
+
+  /** 故事生成 */
+  const handleStoryGenerate = async () => {
+    try {
+      const values = await storyForm.validateFields();
+      setStoryLoading(true);
+      setStoryArticles([]);
+      setStoryPhase(0);
+
+      // 模拟阶段进度（后端不支持流式阶段推送）
+      const phaseInterval = setInterval(() => {
+        setStoryPhase((prev) => (prev < 4 ? prev + 1 : prev));
+      }, 40000);
+
+      const res = await articleAPI.storyGenerate({
+        reference_text: values.referenceText,
+        reference_article_ids: values.storyArticleIds || undefined,
+        chapter_count: values.chapterCount,
+        total_word_count: values.totalWordCount,
+        story_type: values.storyType,
+        ai_provider: values.storyProvider,
+      });
+
+      clearInterval(phaseInterval);
+      setStoryPhase(5);
+
+      const articles = res.data ?? [];
+      setStoryArticles(articles);
+      message.success(`故事生成完成！共 ${articles.length} 篇已保存`);
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      const detail = error?.response?.data?.detail;
+      message.error(detail || '故事生成失败，请重试');
+    } finally {
+      setStoryLoading(false);
     }
   };
 
@@ -233,6 +289,7 @@ const ArticleGenerate: React.FC = () => {
         style: values.style,
         word_count: values.wordCount,
         ai_provider: values.provider,
+        enable_images: values.enableImages || false,
       };
 
       // 清除之前的生成结果
@@ -369,8 +426,9 @@ const ArticleGenerate: React.FC = () => {
       setPublishModalVisible(false);
       setPublishAccountId(undefined);
       clearGenerated();
-    } catch {
-      message.error('发布失败');
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      message.error(detail || '发布失败');
     } finally {
       setPublishLoading(false);
     }
@@ -380,9 +438,10 @@ const ArticleGenerate: React.FC = () => {
   const handleCopy = () => {
     if (!generatedArticle) return;
     const text = `# ${generatedArticle.title}\n\n${generatedArticle.content}`;
-    navigator.clipboard.writeText(text).then(() => {
-      message.success('已复制到剪贴板');
-    });
+    navigator.clipboard.writeText(text).then(
+      () => { message.success('已复制到剪贴板'); },
+      () => { message.error('复制失败，请手动复制'); }
+    );
   };
 
   // ==================== 系列文章处理函数 ====================
@@ -440,12 +499,14 @@ const ArticleGenerate: React.FC = () => {
         ai_provider: values.seriesProvider,
       });
 
-      setSeriesArticles(res.data);
-      setSeriesProgress({ current: res.data.length, total: seriesOutline.articles.length });
-      message.success(`成功生成 ${res.data.length} 篇系列文章！`);
+      const articles = res.data ?? [];
+      setSeriesArticles(articles);
+      setSeriesProgress({ current: articles.length, total: seriesOutline.articles.length });
+      message.success(`成功生成 ${articles.length} 篇系列文章！`);
     } catch (error: any) {
       if (error?.errorFields) return;
-      message.error('系列文章生成失败，请重试');
+      const detail = error?.response?.data?.detail;
+      message.error(detail || '系列文章生成失败，请重试');
     } finally {
       setSeriesGenerating(false);
     }
@@ -488,6 +549,15 @@ const ArticleGenerate: React.FC = () => {
             </span>
           ),
         },
+        {
+          key: 'story',
+          label: (
+            <span>
+              <EditOutlined style={{ marginRight: 4 }} />
+              故事生成
+            </span>
+          ),
+        },
       ]}
     />
 
@@ -516,6 +586,7 @@ const ArticleGenerate: React.FC = () => {
               style: 'professional',
               wordCount: 1000,
               provider: 'deepseek',
+              enableImages: false,
             }}
           >
             {/* 主题输入 */}
@@ -581,6 +652,23 @@ const ArticleGenerate: React.FC = () => {
                   label: t.name + (t.description ? ` - ${t.description}` : ''),
                   value: t.id,
                 }))}
+              />
+            </Form.Item>
+
+            {/* AI 配图开关 */}
+            <Form.Item
+              label={
+                <span>
+                  <PictureOutlined style={{ marginRight: 4 }} />
+                  AI 智能配图
+                </span>
+              }
+              name="enableImages"
+              valuePropName="checked"
+            >
+              <Switch
+                checkedChildren="开启"
+                unCheckedChildren="关闭"
               />
             </Form.Item>
 
@@ -814,7 +902,7 @@ const ArticleGenerate: React.FC = () => {
         />
       </Modal>
     </Row>
-    ) : (
+    ) : activeTab === 'series' ? (
     /* ==================== 系列文章生成 Tab ==================== */
     <Row gutter={[16, 16]}>
       {/* 左侧：系列参数表单 */}
@@ -1035,7 +1123,7 @@ const ArticleGenerate: React.FC = () => {
                     正在生成第 {seriesProgress.current + 1} / {seriesProgress.total} 篇...
                   </Text>
                   <Progress
-                    percent={Math.round((seriesProgress.current / seriesProgress.total) * 100)}
+                    percent={seriesProgress.total > 0 ? Math.round((seriesProgress.current / seriesProgress.total) * 100) : 0}
                     status="active"
                     strokeColor="#1677ff"
                   />
@@ -1305,6 +1393,279 @@ const ArticleGenerate: React.FC = () => {
               description={
                 <Text style={{ color: '#666' }}>
                   选择参考文章后，点击"一键智能生成"，智能体将自动分析并批量生成相关文章
+                </Text>
+              }
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 400,
+              }}
+            />
+          )}
+        </Card>
+      </Col>
+    </Row>
+    ) : activeTab === 'story' ? (
+    <Row gutter={[16, 16]}>
+      {/* 左侧：故事生成表单 */}
+      <Col xs={24} lg={10}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <EditOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+              故事生成
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          <Alert
+            message="基于参考素材生成知乎盐选风格故事"
+            description="粘贴新闻报道、背景资料或故事种子，AI 将自动提取人物和冲突，规划章节大纲，逐章生成完整故事，并进行去 AI 味润色。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16, background: '#1a1a2e', borderColor: '#2a2a3e' }}
+          />
+
+          <Form
+            form={storyForm}
+            layout="vertical"
+            initialValues={{
+              chapterCount: 5,
+              totalWordCount: 15000,
+              storyType: 'corruption',
+              storyProvider: 'gemini',
+            }}
+          >
+            {/* 参考素材 */}
+            <Form.Item
+              label={<span style={{ color: '#d0d0d0' }}>参考素材（必填）</span>}
+              name="referenceText"
+              rules={[
+                { required: true, message: '请输入参考素材' },
+                { min: 50, message: '素材至少 50 字' },
+              ]}
+            >
+              <TextArea
+                rows={8}
+                placeholder="粘贴新闻报道、背景资料、案件描述或故事种子……&#10;&#10;例如：2003年某县副县长张某因受贿800万被双规，其妻在得知消息后……"
+                maxLength={50000}
+                showCount
+                style={{
+                  background: '#141414',
+                  borderColor: '#303050',
+                  color: '#e8e8e8',
+                }}
+              />
+            </Form.Item>
+
+            {/* 可选：参考文章 */}
+            <Form.Item
+              label={<span style={{ color: '#d0d0d0' }}>参考已有文章（可选）</span>}
+              name="storyArticleIds"
+            >
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="可选择已有文章作为额外参考"
+                maxCount={5}
+                loading={agentSourceLoading}
+                options={agentSourceArticles.map((a) => ({
+                  label: `[${a.id}] ${a.title}`,
+                  value: a.id,
+                }))}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            {/* 故事类型 */}
+            <Form.Item
+              label={<span style={{ color: '#d0d0d0' }}>故事类型</span>}
+              name="storyType"
+            >
+              <Select
+                options={[
+                  { label: '反腐纪实', value: 'corruption' },
+                  { label: '历史纪事', value: 'historical' },
+                  { label: '悬疑推理', value: 'suspense' },
+                  { label: '情感纪实', value: 'romance' },
+                  { label: '职场风云', value: 'workplace' },
+                ]}
+              />
+            </Form.Item>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                {/* 章节数 */}
+                <Form.Item
+                  label={<span style={{ color: '#d0d0d0' }}>章节数</span>}
+                  name="chapterCount"
+                >
+                  <Select
+                    options={[
+                      { label: '3 章（短篇）', value: 3 },
+                      { label: '5 章（中篇）', value: 5 },
+                      { label: '7 章（长篇）', value: 7 },
+                      { label: '8 章（长篇）', value: 8 },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                {/* 总字数 */}
+                <Form.Item
+                  label={<span style={{ color: '#d0d0d0' }}>总字数</span>}
+                  name="totalWordCount"
+                >
+                  <Select
+                    options={[
+                      { label: '8000 字', value: 8000 },
+                      { label: '12000 字', value: 12000 },
+                      { label: '15000 字', value: 15000 },
+                      { label: '20000 字', value: 20000 },
+                      { label: '25000 字', value: 25000 },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            {/* AI 提供商 */}
+            <Form.Item
+              label={<span style={{ color: '#d0d0d0' }}>AI 提供商</span>}
+              name="storyProvider"
+            >
+              <Select options={providerOptions} />
+            </Form.Item>
+
+            {/* 生成按钮 */}
+            <Form.Item>
+              <Button
+                type="primary"
+                size="large"
+                block
+                loading={storyLoading}
+                onClick={handleStoryGenerate}
+                icon={<EditOutlined />}
+                style={{
+                  height: 48,
+                  fontSize: 16,
+                  background: storyLoading ? undefined : 'linear-gradient(135deg, #722ed1 0%, #9254de 100%)',
+                  border: 'none',
+                  borderRadius: 8,
+                }}
+              >
+                {storyLoading ? '故事生成中（约5-10分钟）...' : '开始生成故事'}
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </Col>
+
+      {/* 右侧：结果展示 */}
+      <Col xs={24} lg={14}>
+        <Card
+          title={
+            <span style={{ color: '#e8e8e8' }}>
+              <FileTextOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+              生成结果
+            </span>
+          }
+          style={{
+            background: '#1f1f1f',
+            borderColor: '#2a2a3e',
+            borderRadius: 12,
+            minHeight: 500,
+          }}
+          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        >
+          {storyLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <Spin size="large" />
+              <div style={{ marginTop: 24 }}>
+                <Steps
+                  direction="vertical"
+                  current={storyPhase}
+                  size="small"
+                  items={[
+                    {
+                      title: '素材提取',
+                      description: '分析参考素材的人物、时代、冲突',
+                    },
+                    {
+                      title: '故事规划',
+                      description: '设计故事弧线、人物卡片、章节大纲',
+                    },
+                    {
+                      title: '分章生成',
+                      description: '逐章生成 2000-3000 字内容',
+                    },
+                    {
+                      title: '组装润色',
+                      description: '合并章节、添加过渡和伏笔回收',
+                    },
+                    {
+                      title: '去AI味',
+                      description: '替换模板表达、添加自然语感',
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+          ) : storyArticles.length > 0 ? (
+            <div>
+              <Alert
+                message={`故事生成完成：共 ${storyArticles.length} 篇（1篇完整故事 + ${storyArticles.length - 1}篇分章）`}
+                type="success"
+                showIcon
+                style={{ marginBottom: 16, background: '#1a2e1a', borderColor: '#2a3e2a' }}
+              />
+              <List
+                dataSource={storyArticles}
+                renderItem={(item, index) => (
+                  <List.Item
+                    style={{
+                      borderBottom: '1px solid #2a2a3e',
+                      padding: '12px 0',
+                    }}
+                  >
+                    <div style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <Tag color={index === 0 ? 'green' : 'purple'}>
+                          {index === 0 ? '完整故事' : `第${item.series_order || index}章`}
+                        </Tag>
+                        <Text strong style={{ color: '#e8e8e8', flex: 1 }}>
+                          {item.title}
+                        </Text>
+                        <Tag>{item.word_count} 字</Tag>
+                      </div>
+                      <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+                        {item.summary?.substring(0, 100)}
+                        {(item.summary?.length || 0) > 100 ? '...' : ''}
+                      </Text>
+                      {index === 0 && item.tags && item.tags.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          {item.tags.map((tag, ti) => (
+                            <Tag key={ti} style={{ marginBottom: 4 }}>{tag}</Tag>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </List.Item>
+                )}
+              />
+            </div>
+          ) : (
+            <Empty
+              description={
+                <Text style={{ color: '#666' }}>
+                  粘贴参考素材后，点击"开始生成故事"，AI 将自动生成多章节知乎盐选故事
                 </Text>
               }
               style={{

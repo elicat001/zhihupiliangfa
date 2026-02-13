@@ -22,9 +22,28 @@ from app.schemas.task import (
     TaskListResponse,
     PublishRecordResponse,
 )
+from app.api.events import event_bus
+from app.core.task_scheduler import task_scheduler
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["任务管理"])
+
+
+def _task_to_response(task: PublishTask) -> TaskResponse:
+    """将 PublishTask ORM 对象转换为 TaskResponse schema（避免重复构造代码）"""
+    return TaskResponse(
+        id=task.id,
+        article_id=task.article_id,
+        account_id=task.account_id,
+        status=task.status,
+        scheduled_at=task.scheduled_at,
+        retry_count=task.retry_count,
+        error_message=task.error_message,
+        created_at=task.created_at,
+        updated_at=getattr(task, "updated_at", None),
+        article_title=task.article.title if task.article else None,
+        account_nickname=task.account.nickname if task.account else None,
+    )
 
 
 @router.get("", response_model=TaskListResponse, summary="获取任务列表")
@@ -81,21 +100,7 @@ async def list_tasks(
     tasks = result.scalars().all()
 
     # 组装响应
-    items = []
-    for task in tasks:
-        item = TaskResponse(
-            id=task.id,
-            article_id=task.article_id,
-            account_id=task.account_id,
-            status=task.status,
-            scheduled_at=task.scheduled_at,
-            retry_count=task.retry_count,
-            error_message=task.error_message,
-            created_at=task.created_at,
-            article_title=task.article.title if task.article else None,
-            account_nickname=task.account.nickname if task.account else None,
-        )
-        items.append(item)
+    items = [_task_to_response(task) for task in tasks]
 
     return TaskListResponse(total=total, items=items)
 
@@ -181,7 +186,7 @@ async def export_tasks(
         iter([output.getvalue()]),
         media_type="text/csv; charset=utf-8",
         headers={
-            "Content-Disposition": f"attachment; filename=tasks_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+            "Content-Disposition": f"attachment; filename=tasks_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         },
     )
 
@@ -192,37 +197,43 @@ async def get_calendar_tasks(
     end: str = Query(..., description="结束日期 YYYY-MM-DD"),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取日期范围内的所有任务（用于日历视图）"""
+    """获取日期范围内的所有任务（用于日历视图）
+
+    查询逻辑：返回 scheduled_at 或 created_at 落在 [start, end) 范围内的任务。
+    定时任务以 scheduled_at 为准，立即执行的任务（scheduled_at 为空）以 created_at 为准。
+    """
     try:
         parsed_start = datetime.strptime(start, "%Y-%m-%d")
         parsed_end = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
     except ValueError:
         raise HTTPException(status_code=400, detail="日期格式错误，请使用 YYYY-MM-DD")
 
+    from sqlalchemy import or_, and_
+
     stmt = (
         select(PublishTask)
-        .where(PublishTask.created_at >= parsed_start)
-        .where(PublishTask.created_at < parsed_end)
+        .where(
+            or_(
+                # 有 scheduled_at 的任务：按 scheduled_at 筛选
+                and_(
+                    PublishTask.scheduled_at.isnot(None),
+                    PublishTask.scheduled_at >= parsed_start,
+                    PublishTask.scheduled_at < parsed_end,
+                ),
+                # 没有 scheduled_at 的立即执行任务：按 created_at 筛选
+                and_(
+                    PublishTask.scheduled_at.is_(None),
+                    PublishTask.created_at >= parsed_start,
+                    PublishTask.created_at < parsed_end,
+                ),
+            )
+        )
         .order_by(PublishTask.created_at.asc())
     )
     result = await db.execute(stmt)
     tasks = result.scalars().all()
 
-    return [
-        TaskResponse(
-            id=task.id,
-            article_id=task.article_id,
-            account_id=task.account_id,
-            status=task.status,
-            scheduled_at=task.scheduled_at,
-            retry_count=task.retry_count,
-            error_message=task.error_message,
-            created_at=task.created_at,
-            article_title=task.article.title if task.article else None,
-            account_nickname=task.account.nickname if task.account else None,
-        )
-        for task in tasks
-    ]
+    return [_task_to_response(task) for task in tasks]
 
 
 @router.get("/{task_id}", response_model=TaskResponse, summary="获取任务详情")
@@ -235,18 +246,7 @@ async def get_task(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    return TaskResponse(
-        id=task.id,
-        article_id=task.article_id,
-        account_id=task.account_id,
-        status=task.status,
-        scheduled_at=task.scheduled_at,
-        retry_count=task.retry_count,
-        error_message=task.error_message,
-        created_at=task.created_at,
-        article_title=task.article.title if task.article else None,
-        account_nickname=task.account.nickname if task.account else None,
-    )
+    return _task_to_response(task)
 
 
 @router.get(
@@ -320,24 +320,25 @@ async def cancel_task(
             detail=f"只能取消 pending 状态的任务，当前状态: {task.status}",
         )
 
-    task.status = "failed"
+    task.status = "cancelled"
     task.error_message = "用户手动取消"
+    task.updated_at = datetime.now()
     await db.commit()
     await db.refresh(task)
 
+    # 移除 APScheduler 中对应的 job（防止已调度的 job 继续触发）
+    await task_scheduler.cancel_task(task_id)
+
+    # 发布 task_cancelled SSE 事件
+    await event_bus.publish("task_cancelled", {
+        "task_id": task.id,
+        "article_id": task.article_id,
+        "account_id": task.account_id,
+        "status": "cancelled",
+    })
+
     logger.info(f"取消任务: task_id={task_id}")
-    return TaskResponse(
-        id=task.id,
-        article_id=task.article_id,
-        account_id=task.account_id,
-        status=task.status,
-        scheduled_at=task.scheduled_at,
-        retry_count=task.retry_count,
-        error_message=task.error_message,
-        created_at=task.created_at,
-        article_title=task.article.title if task.article else None,
-        account_nickname=task.account.nickname if task.account else None,
-    )
+    return _task_to_response(task)
 
 
 # ==================== 任务更新 ====================
@@ -367,20 +368,10 @@ async def update_task(
 
     if request.scheduled_at is not None:
         task.scheduled_at = request.scheduled_at
+        task.updated_at = datetime.now()
         logger.info(f"更新任务调度时间: task_id={task_id}, scheduled_at={request.scheduled_at}")
 
     await db.commit()
     await db.refresh(task)
 
-    return TaskResponse(
-        id=task.id,
-        article_id=task.article_id,
-        account_id=task.account_id,
-        status=task.status,
-        scheduled_at=task.scheduled_at,
-        retry_count=task.retry_count,
-        error_message=task.error_message,
-        created_at=task.created_at,
-        article_title=task.article.title if task.article else None,
-        account_nickname=task.account.nickname if task.account else None,
-    )
+    return _task_to_response(task)

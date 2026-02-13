@@ -4,6 +4,7 @@
 """
 
 import logging
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,6 +24,7 @@ from app.schemas.account import (
     LoginCheckResponse,
 )
 from app.core.zhihu_auth import zhihu_auth
+from app.automation.browser_manager import browser_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/accounts", tags=["账号管理"])
@@ -72,15 +74,19 @@ async def create_account(
     db: AsyncSession = Depends(get_db),
 ):
     """创建新的知乎账号"""
+    # 使用时间戳 + 短 UUID 后缀确保 profile 目录名唯一
+    profile_suffix = uuid.uuid4().hex[:8]
+    profile_name = f"profile_{datetime.now().strftime('%Y%m%d%H%M%S')}_{profile_suffix}"
+
     account = Account(
         nickname=request.nickname,
         zhihu_uid=request.zhihu_uid or "",
         cookie_data=request.cookie_data or "",
-        browser_profile=f"profile_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        browser_profile=profile_name,
         is_active=True,
         login_status="logged_out",
         daily_limit=request.daily_limit or 5,
-        created_at=datetime.utcnow(),
+        # created_at 使用模型默认值 _utcnow
     )
     db.add(account)
 
@@ -134,6 +140,13 @@ async def delete_account(
     account = await db.get(Account, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")
+
+    # 关闭该账号对应的浏览器上下文（如果存在）
+    if account.browser_profile:
+        try:
+            await browser_manager.close_context(account.browser_profile)
+        except Exception as e:
+            logger.warning(f"关闭浏览器上下文失败: {e}")
 
     await db.delete(account)
     await db.commit()
@@ -248,7 +261,7 @@ async def cookie_login(
 ):
     """
     通过导入 Cookie 登录知乎
-    支持 JSON 数组格式或分号分隔格式
+    支持 JSON 数组格式、JSON 对象格式或分号分隔格式
     """
     account = await db.get(Account, account_id)
     if not account:
@@ -263,7 +276,8 @@ async def cookie_login(
             account.login_status = "logged_in"
             account.cookie_data = request.cookie_data
 
-            # 验证并获取昵称
+            # cookie_login 内部已调用 check_login 验证，
+            # 再查一次获取昵称
             check_result = await zhihu_auth.check_login(profile_name)
             if check_result.get("nickname"):
                 account.nickname = check_result["nickname"]

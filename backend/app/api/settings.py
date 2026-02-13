@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.core.task_scheduler import RETRY_BASE_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["系统设置"])
@@ -108,6 +109,7 @@ async def get_settings():
             daily_limit=settings.DAILY_PUBLISH_LIMIT,
             interval_minutes=settings.MIN_PUBLISH_INTERVAL // 60,
             max_retries=settings.MAX_RETRY_COUNT,
+            retry_delay_seconds=RETRY_BASE_DELAY_SECONDS,
         ),
         browser_config=BrowserConfigResponse(
             headless=settings.BROWSER_HEADLESS,

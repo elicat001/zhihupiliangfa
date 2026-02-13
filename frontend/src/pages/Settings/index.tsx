@@ -37,6 +37,7 @@ const aiProviders = [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'OpenAI', value: 'openai' },
   { label: 'Claude', value: 'claude' },
+  { label: 'Google Gemini', value: 'gemini' },
   { label: '通义千问 (Qwen)', value: 'qwen' },
   { label: '智谱 GLM', value: 'zhipu' },
   { label: '月之暗面 Kimi', value: 'moonshot' },

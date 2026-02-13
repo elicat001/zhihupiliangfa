@@ -3,11 +3,16 @@
 存储 AI 生成文章的 Prompt 模板
 """
 
-from datetime import datetime
-from sqlalchemy import Integer, String, Text, DateTime
+from datetime import datetime, timezone
+from sqlalchemy import Integer, String, Text, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
+def _utcnow():
+    """返回当前 UTC 时间（兼容 Python 3.12+ 弃用 datetime.utcnow）"""
+    return datetime.now(timezone.utc)
 
 
 class PromptTemplate(Base):
@@ -28,8 +33,8 @@ class PromptTemplate(Base):
     # 默认目标字数
     default_word_count: Mapped[int] = mapped_column(Integer, nullable=True, default=1500)
     # 是否为内置模板（内置模板不可删除）
-    is_builtin: Mapped[bool] = mapped_column(Integer, nullable=False, default=False)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=_utcnow
     )

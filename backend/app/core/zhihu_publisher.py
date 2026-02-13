@@ -4,6 +4,7 @@
 """
 
 import os
+import random
 import asyncio
 import logging
 from datetime import datetime
@@ -30,6 +31,7 @@ class ZhihuPublisher:
         title: str,
         content: str,
         tags: Optional[list[str]] = None,
+        images: Optional[dict] = None,
     ) -> dict:
         """
         发布文章到知乎专栏
@@ -65,22 +67,29 @@ class ZhihuPublisher:
             page = await browser_manager.new_page(context)
 
             # ========== Step 1: 打开写作页面 ==========
-            logger.info("打开知乎写作页面...")
+            logger.info("Step 1/7: 打开知乎写作页面...")
             await page.goto(self.WRITE_URL, wait_until="domcontentloaded")
             await HumanBehavior.random_delay(3000, 5000)
 
             # 检查是否被重定向到登录页
             if "signin" in page.url or "login" in page.url:
+                screenshot_path = await self._take_screenshot(
+                    page, f"not_logged_in_{profile_name}"
+                )
                 return {
                     "success": False,
                     "article_url": None,
-                    "screenshot_path": None,
+                    "screenshot_path": screenshot_path,
                     "message": "账号未登录或登录已过期，请重新登录",
                 }
 
             # ========== Step 2: 填入标题 ==========
-            logger.info("填入文章标题...")
-            title_selector = 'textarea[placeholder*="请输入标题"], textarea.WriteIndex-titleInput, input[placeholder*="标题"]'
+            logger.info("Step 2/7: 填入文章标题...")
+            title_selector = (
+                'textarea[placeholder*="请输入标题"], '
+                'textarea.WriteIndex-titleInput, '
+                'input[placeholder*="标题"]'
+            )
             try:
                 await page.wait_for_selector(title_selector, timeout=10000)
                 await HumanBehavior.random_delay(500, 1000)
@@ -92,26 +101,34 @@ class ZhihuPublisher:
                 await page.keyboard.press("Backspace")
                 await HumanBehavior.random_delay(300, 500)
 
-                # 逐字输入标题
+                # 逐字输入标题，模拟人类打字
                 for char in title:
-                    await page.keyboard.type(char, delay=50 + int(30 * __import__("random").random()))
-                    if __import__("random").random() < 0.03:
+                    delay = 50 + int(30 * random.random())
+                    await page.keyboard.type(char, delay=delay)
+                    if random.random() < 0.03:
                         await HumanBehavior.random_delay(200, 600)
 
             except Exception as e:
                 logger.error(f"标题输入失败: {e}")
+                screenshot_path = await self._take_screenshot(
+                    page, f"error_title_{profile_name}"
+                )
                 return {
                     "success": False,
                     "article_url": None,
-                    "screenshot_path": None,
+                    "screenshot_path": screenshot_path,
                     "message": f"标题输入失败: {str(e)}",
                 }
 
             await HumanBehavior.random_delay(1000, 2000)
 
             # ========== Step 3: 填入正文内容 ==========
-            logger.info("填入文章正文...")
-            content_selector = '.public-DraftEditor-content, div[contenteditable="true"], .WriteIndex-contentInput'
+            logger.info("Step 3/7: 填入文章正文...")
+            content_selector = (
+                '.public-DraftEditor-content, '
+                'div[contenteditable="true"], '
+                '.WriteIndex-contentInput'
+            )
             try:
                 await page.wait_for_selector(content_selector, timeout=10000)
                 content_element = page.locator(content_selector).first
@@ -124,10 +141,13 @@ class ZhihuPublisher:
 
             except Exception as e:
                 logger.error(f"正文输入失败: {e}")
+                screenshot_path = await self._take_screenshot(
+                    page, f"error_content_{profile_name}"
+                )
                 return {
                     "success": False,
                     "article_url": None,
-                    "screenshot_path": None,
+                    "screenshot_path": screenshot_path,
                     "message": f"正文输入失败: {str(e)}",
                 }
 
@@ -136,18 +156,20 @@ class ZhihuPublisher:
 
             # ========== Step 4: 添加话题标签 ==========
             if tags:
-                logger.info(f"添加话题标签: {tags}")
+                logger.info(f"Step 4/7: 添加话题标签: {tags}")
                 await self._add_tags(page, tags)
                 await HumanBehavior.random_delay(1000, 2000)
+            else:
+                logger.info("Step 4/7: 无话题标签，跳过")
 
             # ========== Step 5: 点击发布 ==========
-            logger.info("点击发布按钮...")
+            logger.info("Step 5/7: 点击发布按钮...")
             publish_success = await self._click_publish(page)
 
             if not publish_success:
                 # 截图保存失败现场
                 error_screenshot = await self._take_screenshot(
-                    page, f"error_{profile_name}"
+                    page, f"error_publish_{profile_name}"
                 )
                 return {
                     "success": False,
@@ -159,12 +181,13 @@ class ZhihuPublisher:
             await HumanBehavior.random_delay(3000, 5000)
 
             # ========== Step 6: 截图存档 ==========
-            logger.info("发布完成，截图存档...")
+            logger.info("Step 6/7: 发布完成，截图存档...")
             screenshot_path = await self._take_screenshot(
                 page, f"published_{profile_name}"
             )
 
             # ========== Step 7: 获取文章 URL ==========
+            logger.info("Step 7/7: 获取文章 URL...")
             article_url = page.url
             if "zhuanlan.zhihu.com/p/" in article_url:
                 logger.info(f"文章发布成功: {article_url}")
@@ -181,7 +204,7 @@ class ZhihuPublisher:
 
         except Exception as e:
             logger.error(f"发布文章失败: {e}")
-            # 尝试截图
+            # 尝试截图保存失败现场
             screenshot_path = None
             if page:
                 try:
@@ -384,8 +407,8 @@ class ZhihuPublisher:
             bool: 是否成功点击
         """
         publish_selectors = [
-            'button:has-text("发布")',
             'button:has-text("发布文章")',
+            'button:has-text("发布")',
             'button[class*="PublishButton"]',
             '.WriteIndex-publishButton',
             'button.Button--primary:has-text("发布")',
@@ -498,7 +521,25 @@ class ZhihuPublisher:
 
         html = markdown_text
 
-        # 处理标题 ### -> <h3>
+        # 处理图片 ![alt](url) -> <figure><img>
+        html = re.sub(
+            r'!\[([^\]]*)\]\(([^)]+)\)',
+            r'<figure style="text-align:center;margin:16px 0">'
+            r'<img src="\2" alt="\1" style="max-width:100%">'
+            r'<figcaption style="color:#999;font-size:14px;margin-top:4px">\1</figcaption>'
+            r'</figure>',
+            html,
+        )
+
+        # 处理代码块（先处理，避免被其他规则干扰）
+        html = re.sub(
+            r"```(\w*)\n(.*?)```",
+            r"<pre><code>\2</code></pre>",
+            html,
+            flags=re.DOTALL,
+        )
+
+        # 处理标题 ### -> <h3>（从高级到低级）
         html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html, flags=re.MULTILINE)
         html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html, flags=re.MULTILINE)
         html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html, flags=re.MULTILINE)
@@ -512,16 +553,29 @@ class ZhihuPublisher:
         # 处理行内代码 `code` -> <code>code</code>
         html = re.sub(r"`(.+?)`", r"<code>\1</code>", html)
 
-        # 处理无序列表
-        html = re.sub(r"^- (.+)$", r"<li>\1</li>", html, flags=re.MULTILINE)
+        # 处理无序列表项 - item -> <li class="ul">item</li>
         html = re.sub(
-            r"(<li>.*?</li>\n?)+",
-            lambda m: f"<ul>{m.group()}</ul>",
+            r"^- (.+)$", r'<li class="ul">\1</li>', html, flags=re.MULTILINE
+        )
+
+        # 处理有序列表项 1. item -> <li class="ol">item</li>
+        html = re.sub(
+            r"^\d+\. (.+)$", r'<li class="ol">\1</li>', html, flags=re.MULTILINE
+        )
+
+        # 将连续的无序列表项包裹到 <ul>
+        html = re.sub(
+            r'(<li class="ul">.*?</li>\n?)+',
+            lambda m: "<ul>" + re.sub(r' class="ul"', "", m.group()) + "</ul>",
             html,
         )
 
-        # 处理有序列表
-        html = re.sub(r"^\d+\. (.+)$", r"<li>\1</li>", html, flags=re.MULTILINE)
+        # 将连续的有序列表项包裹到 <ol>
+        html = re.sub(
+            r'(<li class="ol">.*?</li>\n?)+',
+            lambda m: "<ol>" + re.sub(r' class="ol"', "", m.group()) + "</ol>",
+            html,
+        )
 
         # 处理引用 > text -> <blockquote>text</blockquote>
         html = re.sub(
@@ -529,14 +583,6 @@ class ZhihuPublisher:
             r"<blockquote>\1</blockquote>",
             html,
             flags=re.MULTILINE,
-        )
-
-        # 处理代码块
-        html = re.sub(
-            r"```(\w*)\n(.*?)```",
-            r"<pre><code>\2</code></pre>",
-            html,
-            flags=re.DOTALL,
         )
 
         # 处理分割线
@@ -550,8 +596,7 @@ class ZhihuPublisher:
             if not p:
                 continue
             # 如果已经被标签包裹，不再添加 <p>
-            if p.startswith("<h") or p.startswith("<ul") or p.startswith("<ol") or \
-               p.startswith("<blockquote") or p.startswith("<pre") or p.startswith("<hr"):
+            if p.startswith(("<h", "<ul", "<ol", "<blockquote", "<pre", "<hr", "<figure")):
                 processed.append(p)
             else:
                 # 替换单个换行为 <br>

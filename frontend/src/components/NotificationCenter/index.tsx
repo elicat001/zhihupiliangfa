@@ -52,6 +52,7 @@ const NotificationCenter: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   /** Fetch unread count */
@@ -121,7 +122,7 @@ const NotificationCenter: React.FC = () => {
             data.type === 'account_status_change'
           ) {
             fetchUnreadCount();
-            if (open) {
+            if (openRef.current) {
               fetchNotifications();
             }
           }
@@ -147,11 +148,12 @@ const NotificationCenter: React.FC = () => {
         eventSourceRef.current = null;
       }
     };
-  }, [fetchUnreadCount, fetchNotifications, open]);
+  }, [fetchUnreadCount, fetchNotifications]);
 
   /** When popover opens, fetch notifications */
   const handleOpenChange = (visible: boolean) => {
     setOpen(visible);
+    openRef.current = visible;
     if (visible) {
       fetchNotifications();
     }

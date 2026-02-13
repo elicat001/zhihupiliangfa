@@ -208,7 +208,8 @@ class HumanBehavior:
         await HumanBehavior.random_delay(200, 500)
 
         for char in text:
-            await element.press_sequentially(char, delay=random.randint(min_delay, max_delay))
+            delay = random.randint(min_delay, max_delay)
+            await page.keyboard.type(char, delay=delay)
             # 偶尔暂停一下，模拟思考
             if random.random() < 0.05:
                 await HumanBehavior.random_delay(500, 1500)
@@ -294,9 +295,10 @@ class HumanBehavior:
             duration_seconds: 模拟阅读的时长（秒）
         """
         logger.info(f"模拟阅读行为 {duration_seconds} 秒...")
-        end_time = asyncio.get_event_loop().time() + duration_seconds
+        loop = asyncio.get_running_loop()
+        end_time = loop.time() + duration_seconds
 
-        while asyncio.get_event_loop().time() < end_time:
+        while loop.time() < end_time:
             action = random.choice(["scroll", "mouse_move", "wait"])
             if action == "scroll":
                 await HumanBehavior.random_scroll(page, times=1)

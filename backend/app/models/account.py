@@ -3,11 +3,16 @@
 管理多个知乎账号的登录态和配置
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Integer, String, Text, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
+def _utcnow():
+    """返回当前 UTC 时间（兼容 Python 3.12+ 弃用 datetime.utcnow）"""
+    return datetime.now(timezone.utc)
 
 
 class Account(Base):
@@ -33,5 +38,5 @@ class Account(Base):
     daily_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=_utcnow
     )

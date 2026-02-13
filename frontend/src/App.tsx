@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Spin } from 'antd';
+import { Spin, Typography } from 'antd';
 import AppLayout from './components/Layout';
 
 // 路由懒加载，提升首屏性能
@@ -38,6 +38,12 @@ const App: React.FC = () => {
           <Route path="/tasks" element={<TaskSchedule />} />
           <Route path="/history" element={<PublishHistory />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={
+            <div style={{ textAlign: 'center', paddingTop: 100 }}>
+              <Typography.Title level={3} style={{ color: '#e8e8e8' }}>404 - 页面不存在</Typography.Title>
+              <Typography.Text style={{ color: '#a0a0a0' }}>请检查URL是否正确</Typography.Text>
+            </div>
+          } />
         </Routes>
       </Suspense>
     </AppLayout>

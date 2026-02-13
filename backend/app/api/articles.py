@@ -8,9 +8,9 @@ import io
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,8 +30,9 @@ from app.schemas.article import (
     ArticleRewriteRequest,
 )
 from app.core.ai_generator import ai_generator
-from app.schemas.article import AgentGenerateRequest
+from app.schemas.article import AgentGenerateRequest, StoryGenerateRequest
 from app.core.article_agent import article_agent
+from app.core.story_agent import story_agent
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/articles", tags=["文章管理"])
@@ -51,13 +52,21 @@ async def generate_article(
     - **ai_provider**: AI 提供商（openai / deepseek / claude）
     """
     try:
-        # 调用 AI 生成
-        generated = await ai_generator.generate(
-            topic=request.topic,
-            style=request.style,
-            word_count=request.word_count,
-            ai_provider=request.ai_provider,
-        )
+        # 调用 AI 生成（根据 enable_images 决定是否配图）
+        if request.enable_images:
+            generated = await ai_generator.generate_with_images(
+                topic=request.topic,
+                style=request.style,
+                word_count=request.word_count,
+                ai_provider=request.ai_provider,
+            )
+        else:
+            generated = await ai_generator.generate(
+                topic=request.topic,
+                style=request.style,
+                word_count=request.word_count,
+                ai_provider=request.ai_provider,
+            )
 
         # 保存到数据库
         article = Article(
@@ -68,7 +77,8 @@ async def generate_article(
             word_count=generated.word_count,
             ai_provider=request.ai_provider,
             status="draft",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            images=getattr(generated, 'images', None),
         )
         db.add(article)
 
@@ -113,6 +123,24 @@ async def generate_article_stream(
     - error: 生成过程中出现错误
     """
 
+    # Pre-validate provider availability before entering the stream
+    # so we can return a proper HTTP error instead of an SSE error
+    provider = ai_generator.get_provider(request.ai_provider)
+    if not provider:
+        available = ai_generator.get_available_providers()
+        if not available:
+            raise HTTPException(
+                status_code=400,
+                detail="没有可用的 AI 提供商，请先配置 API Key",
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"AI 提供商 '{request.ai_provider}' 不可用。"
+                f"可用的提供商: {', '.join(available)}"
+            ),
+        )
+
     async def event_generator():
         full_text = ""
         try:
@@ -130,12 +158,21 @@ async def generate_article_stream(
                 )
                 yield f"data: {event_data}\n\n"
 
+            # 流式完成后检查是否收到了任何内容
+            if not full_text.strip():
+                event_data = json.dumps(
+                    {
+                        "type": "error",
+                        "message": "AI 未返回任何内容，请稍后重试",
+                    },
+                    ensure_ascii=False,
+                )
+                yield f"data: {event_data}\n\n"
+                return
+
             # 流式完成后，解析完整文本并保存到数据库
             try:
-                from app.core.ai_providers.base import BaseAIProvider
-
-                # 使用基类的 _parse_response 来解析 JSON
-                provider = ai_generator.get_provider(request.ai_provider)
+                # 使用提供商的 _parse_response 来解析 JSON
                 generated = provider._parse_response(full_text)
             except Exception as parse_err:
                 logger.error(f"流式生成后解析失败: {parse_err}")
@@ -149,34 +186,54 @@ async def generate_article_stream(
                 yield f"data: {event_data}\n\n"
                 return
 
+            # 流式完成后，若启用图片则获取图片
+            if request.enable_images and (generated.images or generated.cover_image):
+                try:
+                    generated = await ai_generator.fetch_images_for_article(generated)
+                except Exception as img_err:
+                    logger.warning(f"图片获取失败，继续保存纯文本: {img_err}")
+
             # 保存到数据库
-            article = Article(
-                title=generated.title,
-                content=generated.content,
-                summary=generated.summary,
-                tags=generated.tags,
-                word_count=generated.word_count,
-                ai_provider=request.ai_provider,
-                status="draft",
-                created_at=datetime.utcnow(),
-            )
-            db.add(article)
+            try:
+                article = Article(
+                    title=generated.title,
+                    content=generated.content,
+                    summary=generated.summary,
+                    tags=generated.tags,
+                    word_count=generated.word_count,
+                    ai_provider=request.ai_provider,
+                    status="draft",
+                    created_at=datetime.now(timezone.utc),
+                    images=getattr(generated, 'images', None),
+                )
+                db.add(article)
 
-            log = SystemLog(
-                event_type="generate",
-                level="info",
-                message=f"AI 流式生成文章成功: {generated.title}",
-                details={
-                    "topic": request.topic,
-                    "style": request.style,
-                    "word_count": generated.word_count,
-                    "ai_provider": request.ai_provider,
-                },
-            )
-            db.add(log)
+                log = SystemLog(
+                    event_type="generate",
+                    level="info",
+                    message=f"AI 流式生成文章成功: {generated.title}",
+                    details={
+                        "topic": request.topic,
+                        "style": request.style,
+                        "word_count": generated.word_count,
+                        "ai_provider": request.ai_provider,
+                    },
+                )
+                db.add(log)
 
-            await db.commit()
-            await db.refresh(article)
+                await db.commit()
+                await db.refresh(article)
+            except Exception as db_err:
+                logger.error(f"流式生成后保存数据库失败: {db_err}")
+                event_data = json.dumps(
+                    {
+                        "type": "error",
+                        "message": f"文章保存失败: {str(db_err)}",
+                    },
+                    ensure_ascii=False,
+                )
+                yield f"data: {event_data}\n\n"
+                return
 
             logger.info(
                 f"流式文章生成并保存: id={article.id}, title={article.title}"
@@ -299,7 +356,7 @@ async def generate_series_articles(
                 word_count=generated.word_count,
                 ai_provider=request.ai_provider,
                 status="draft",
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 series_id=series_id,
                 series_order=idx + 1,
                 series_title=request.series_title,
@@ -357,8 +414,9 @@ async def rewrite_article(
         raise HTTPException(status_code=404, detail="原文章不存在")
 
     # 确定使用的 AI 提供商（优先用原文章的提供商，若不可用则用默认）
-    ai_provider = original.ai_provider
-    if ai_provider in ("manual", "rewrite", "") or not ai_generator.get_provider(ai_provider):
+    ai_provider = original.ai_provider or ""
+    non_ai_sources = ("manual", "rewrite", "import", "agent-generated", "")
+    if ai_provider in non_ai_sources or not ai_generator.get_provider(ai_provider):
         available = ai_generator.get_available_providers()
         if not available:
             raise HTTPException(status_code=400, detail="没有可用的 AI 提供商")
@@ -381,7 +439,7 @@ async def rewrite_article(
             word_count=generated.word_count,
             ai_provider="rewrite",
             status="draft",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         db.add(article)
 
@@ -472,7 +530,7 @@ async def agent_generate_articles(
                 word_count=article_data["word_count"],
                 ai_provider=request.ai_provider,
                 status="draft",
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 category="agent-generated",
                 series_id=article_data.get("series_id"),
                 series_order=article_data.get("series_order"),
@@ -511,6 +569,122 @@ async def agent_generate_articles(
         raise HTTPException(status_code=500, detail=f"智能体生成失败: {str(e)}")
 
 
+@router.post(
+    "/story-generate",
+    response_model=list[ArticleResponse],
+    summary="故事生成",
+)
+async def story_generate(
+    request: StoryGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    故事生成 Agent
+
+    基于参考素材自动生成知乎盐选风格故事：
+    1. 素材提取 — 分析参考素材的人物、冲突、时代背景
+    2. 故事规划 — 设计故事弧线、人物卡片、章节大纲
+    3. 分章草稿 — 逐章生成 2000-3000 字内容
+    4. 组装润色 — 合并章节、添加过渡和伏笔回收
+    5. 去AI味 — 替换模板表达、添加自然语感
+    """
+    # 获取可选的参考文章
+    reference_articles = []
+    if request.reference_article_ids:
+        for article_id in request.reference_article_ids:
+            article = await db.get(Article, article_id)
+            if article:
+                reference_articles.append({
+                    "title": article.title,
+                    "content": article.content,
+                })
+
+    try:
+        result = await story_agent.run(
+            reference_text=request.reference_text,
+            reference_articles=reference_articles,
+            chapter_count=request.chapter_count,
+            total_word_count=request.total_word_count,
+            story_type=request.story_type,
+            ai_provider=request.ai_provider,
+        )
+
+        final = result["final_story"]
+        story_content = final.get("full_story", "")
+        word_count = len(story_content.replace(" ", "").replace("\n", ""))
+        series_id = str(uuid.uuid4())
+        saved_articles = []
+
+        # 保存完整故事
+        article = Article(
+            title=final.get("title", "AI生成故事"),
+            content=story_content,
+            summary=final.get("summary", ""),
+            tags=final.get("tags", []),
+            word_count=word_count,
+            ai_provider=request.ai_provider,
+            status="draft",
+            created_at=datetime.now(timezone.utc),
+            category="story-generated",
+            series_id=series_id,
+            series_title=final.get("title", ""),
+        )
+        db.add(article)
+
+        log = SystemLog(
+            event_type="story_generate",
+            level="info",
+            message=f"故事生成成功: {final.get('title', '未知')}",
+            details={
+                "story_type": request.story_type,
+                "chapter_count": request.chapter_count,
+                "total_word_count": word_count,
+                "ai_provider": request.ai_provider,
+            },
+        )
+        db.add(log)
+
+        await db.commit()
+        await db.refresh(article)
+        saved_articles.append(article)
+
+        # 保存各章节为独立文章
+        chapters = result.get("chapters", [])
+        for ch in chapters:
+            if ch.get("error"):
+                continue
+            ch_article = Article(
+                title=f"{final.get('title', '故事')} - 第{ch['chapter_num']}章: {ch.get('title', '')}",
+                content=ch.get("content", ""),
+                summary=ch.get("summary", "")[:200],
+                tags=final.get("tags", []),
+                word_count=ch.get("word_count", 0),
+                ai_provider=request.ai_provider,
+                status="draft",
+                created_at=datetime.now(timezone.utc),
+                category="story-chapter",
+                series_id=series_id,
+                series_order=ch["chapter_num"],
+                series_title=final.get("title", ""),
+            )
+            db.add(ch_article)
+            await db.commit()
+            await db.refresh(ch_article)
+            saved_articles.append(ch_article)
+
+        logger.info(
+            f"故事生成完成：标题={final.get('title')}, "
+            f"总字数={word_count}, 章节数={len(chapters)}"
+        )
+        return saved_articles
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"故事生成失败: {e}")
+        raise HTTPException(status_code=500, detail=f"故事生成失败: {str(e)}")
+
+
 @router.post("/batch-delete", summary="批量删除文章")
 async def batch_delete_articles(
     data: dict,
@@ -539,9 +713,10 @@ async def list_articles(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: str = Query(None, description="状态过滤：draft / published"),
     category: str = Query(None, description="分类过滤"),
+    keyword: str = Query(None, description="关键词搜索（标题/内容模糊匹配）"),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取文章列表，支持分页、状态和分类过滤"""
+    """获取文章列表，支持分页、状态、分类过滤和关键词搜索"""
     # 构建查询
     stmt = select(Article).order_by(Article.created_at.desc())
     count_stmt = select(func.count(Article.id))
@@ -553,6 +728,11 @@ async def list_articles(
     if category:
         stmt = stmt.where(Article.category == category)
         count_stmt = count_stmt.where(Article.category == category)
+
+    if keyword:
+        keyword_filter = Article.title.ilike(f"%{keyword}%")
+        stmt = stmt.where(keyword_filter)
+        count_stmt = count_stmt.where(keyword_filter)
 
     # 总数
     total_result = await db.execute(count_stmt)
@@ -604,7 +784,7 @@ async def import_article(
         word_count=word_count,
         ai_provider="import",
         status="draft",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(article)
     await db.commit()
@@ -689,7 +869,7 @@ async def create_article(
         word_count=word_count,
         ai_provider=request.ai_provider or "manual",
         status="draft",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         category=request.category,
     )
     db.add(article)

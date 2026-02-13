@@ -3,12 +3,17 @@
 存储 AI 生成的文章数据
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import Integer, String, Text, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
+def _utcnow():
+    """返回当前 UTC 时间（兼容 Python 3.12+ 弃用 datetime.utcnow）"""
+    return datetime.now(timezone.utc)
 
 
 class Article(Base):
@@ -32,8 +37,11 @@ class Article(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=_utcnow
     )
+
+    # 图片数据 JSON，如 {"cover": {...}, "inline": [...]}
+    images: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=None)
 
     # 文章分类
     category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default=None)

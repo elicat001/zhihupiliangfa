@@ -49,9 +49,22 @@ async def init_db():
     在应用启动时调用
     """
     from app.models.base import Base  # noqa: F811
+    # 导入所有模型，确保它们注册到 Base.metadata 中
+    import app.models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # 轻量迁移：为已有表添加新列（列已存在时静默忽略）
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        for stmt in [
+            "ALTER TABLE articles ADD COLUMN images JSON DEFAULT NULL",
+        ]:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass
 
 
 async def close_db():

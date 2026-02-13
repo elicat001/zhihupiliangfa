@@ -4,7 +4,7 @@
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from typing import Optional
 
@@ -35,7 +35,7 @@ async def get_dashboard_stats(
     获取仪表盘统计数据
     包含文章数、账号数、任务数、今日统计等
     """
-    today_start = datetime.utcnow().replace(
+    today_start = datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
 

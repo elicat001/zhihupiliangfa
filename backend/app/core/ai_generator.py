@@ -5,12 +5,12 @@ AI 文章生成器
 
 import json
 import logging
+import re
 from typing import AsyncIterator, Optional
-
-import httpx
 
 from app.config import settings
 from app.core.ai_providers.base import BaseAIProvider, GeneratedArticle
+from app.core.image_service import image_service, ImageRequest
 from app.core.ai_providers.openai_provider import OpenAIProvider
 from app.core.ai_providers.deepseek_provider import DeepSeekProvider
 from app.core.ai_providers.claude_provider import ClaudeProvider
@@ -18,6 +18,7 @@ from app.core.ai_providers.qwen_provider import QwenProvider
 from app.core.ai_providers.zhipu_provider import ZhipuProvider
 from app.core.ai_providers.moonshot_provider import MoonshotProvider
 from app.core.ai_providers.doubao_provider import DoubaoProvider
+from app.core.ai_providers.gemini_provider import GeminiProvider
 
 logger = logging.getLogger(__name__)
 
@@ -29,75 +30,68 @@ class AIGenerator:
         self._providers: dict[str, BaseAIProvider] = {}
         self._init_providers()
 
+    def _try_init_provider(
+        self, name: str, provider_cls: type, api_key: Optional[str], base_url: str, model: str
+    ):
+        """
+        安全地初始化单个提供商，捕获异常避免影响其他提供商。
+        """
+        if not api_key:
+            return
+        try:
+            self._providers[name] = provider_cls(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+            )
+            logger.info(f"{name} 提供商已初始化 (model={model})")
+        except Exception as e:
+            logger.warning(f"{name} 提供商初始化失败: {e}")
+
     def _init_providers(self):
         """根据配置初始化可用的 AI 提供商"""
 
-        # 初始化 OpenAI
-        if settings.OPENAI_API_KEY:
-            self._providers["openai"] = OpenAIProvider(
-                api_key=settings.OPENAI_API_KEY,
-                base_url=settings.OPENAI_BASE_URL,
-                model=settings.OPENAI_MODEL,
-            )
-            logger.info("OpenAI 提供商已初始化")
-
-        # 初始化 DeepSeek
-        if settings.DEEPSEEK_API_KEY:
-            self._providers["deepseek"] = DeepSeekProvider(
-                api_key=settings.DEEPSEEK_API_KEY,
-                base_url=settings.DEEPSEEK_BASE_URL,
-                model=settings.DEEPSEEK_MODEL,
-            )
-            logger.info("DeepSeek 提供商已初始化")
-
-        # 初始化 Claude
-        if settings.CLAUDE_API_KEY:
-            self._providers["claude"] = ClaudeProvider(
-                api_key=settings.CLAUDE_API_KEY,
-                base_url=settings.CLAUDE_BASE_URL,
-                model=settings.CLAUDE_MODEL,
-            )
-            logger.info("Claude 提供商已初始化")
-
-        # 初始化通义千问
-        if settings.QWEN_API_KEY:
-            self._providers["qwen"] = QwenProvider(
-                api_key=settings.QWEN_API_KEY,
-                base_url=settings.QWEN_BASE_URL,
-                model=settings.QWEN_MODEL,
-            )
-            logger.info("通义千问 提供商已初始化")
-
-        # 初始化智谱 GLM
-        if settings.ZHIPU_API_KEY:
-            self._providers["zhipu"] = ZhipuProvider(
-                api_key=settings.ZHIPU_API_KEY,
-                base_url=settings.ZHIPU_BASE_URL,
-                model=settings.ZHIPU_MODEL,
-            )
-            logger.info("智谱 GLM 提供商已初始化")
-
-        # 初始化月之暗面 Kimi
-        if settings.MOONSHOT_API_KEY:
-            self._providers["moonshot"] = MoonshotProvider(
-                api_key=settings.MOONSHOT_API_KEY,
-                base_url=settings.MOONSHOT_BASE_URL,
-                model=settings.MOONSHOT_MODEL,
-            )
-            logger.info("月之暗面 Kimi 提供商已初始化")
-
-        # 初始化豆包
-        if settings.DOUBAO_API_KEY:
-            self._providers["doubao"] = DoubaoProvider(
-                api_key=settings.DOUBAO_API_KEY,
-                base_url=settings.DOUBAO_BASE_URL,
-                model=settings.DOUBAO_MODEL,
-            )
-            logger.info("豆包 提供商已初始化")
+        self._try_init_provider(
+            "openai", OpenAIProvider,
+            settings.OPENAI_API_KEY, settings.OPENAI_BASE_URL, settings.OPENAI_MODEL,
+        )
+        self._try_init_provider(
+            "deepseek", DeepSeekProvider,
+            settings.DEEPSEEK_API_KEY, settings.DEEPSEEK_BASE_URL, settings.DEEPSEEK_MODEL,
+        )
+        self._try_init_provider(
+            "claude", ClaudeProvider,
+            settings.CLAUDE_API_KEY, settings.CLAUDE_BASE_URL, settings.CLAUDE_MODEL,
+        )
+        self._try_init_provider(
+            "qwen", QwenProvider,
+            settings.QWEN_API_KEY, settings.QWEN_BASE_URL, settings.QWEN_MODEL,
+        )
+        self._try_init_provider(
+            "zhipu", ZhipuProvider,
+            settings.ZHIPU_API_KEY, settings.ZHIPU_BASE_URL, settings.ZHIPU_MODEL,
+        )
+        self._try_init_provider(
+            "moonshot", MoonshotProvider,
+            settings.MOONSHOT_API_KEY, settings.MOONSHOT_BASE_URL, settings.MOONSHOT_MODEL,
+        )
+        self._try_init_provider(
+            "doubao", DoubaoProvider,
+            settings.DOUBAO_API_KEY, settings.DOUBAO_BASE_URL, settings.DOUBAO_MODEL,
+        )
+        self._try_init_provider(
+            "gemini", GeminiProvider,
+            settings.GEMINI_API_KEY, settings.GEMINI_BASE_URL, settings.GEMINI_MODEL,
+        )
 
         if not self._providers:
             logger.warning(
                 "没有配置任何 AI API Key，请在 .env 文件或环境变量中设置"
+            )
+        else:
+            logger.info(
+                f"已初始化 {len(self._providers)} 个 AI 提供商: "
+                f"{', '.join(self._providers.keys())}"
             )
 
     def get_available_providers(self) -> list[str]:
@@ -126,29 +120,10 @@ class AIGenerator:
     ) -> str:
         """
         通用方法：调用提供商的 Chat API 并返回原始文本响应。
-        所有提供商都使用兼容 OpenAI 的 API 格式。
+        委托给各提供商自身的 chat() 方法，确保 Claude 等非 OpenAI 格式的
+        提供商也能正确调用。
         """
-        url = f"{provider.base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {provider.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": provider.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.8,
-            "max_tokens": 4096,
-        }
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-
-        return data["choices"][0]["message"]["content"]
+        return await provider.chat(system_prompt, user_prompt)
 
     async def generate(
         self,
@@ -173,17 +148,7 @@ class AIGenerator:
             ValueError: 当提供商不可用时
             Exception: 当 API 调用失败时
         """
-        provider = self._providers.get(ai_provider)
-        if not provider:
-            available = self.get_available_providers()
-            if not available:
-                raise ValueError(
-                    "没有可用的 AI 提供商，请先配置 API Key"
-                )
-            raise ValueError(
-                f"AI 提供商 '{ai_provider}' 不可用。"
-                f"可用的提供商: {', '.join(available)}"
-            )
+        provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(
             f"使用 {ai_provider} 生成文章: topic={topic}, "
@@ -202,6 +167,138 @@ class AIGenerator:
         except Exception as e:
             logger.error(f"文章生成失败 ({ai_provider}): {e}")
             raise
+
+    async def generate_with_images(
+        self,
+        topic: str,
+        style: str = "professional",
+        word_count: int = 1500,
+        ai_provider: str = "deepseek",
+    ) -> GeneratedArticle:
+        """
+        生成带图片的文章：
+        1. LLM 生成文章 + 图片描述
+        2. 获取图片（封面用 CogView，正文用 Unsplash）
+        3. 将 [IMG] 占位符替换为 Markdown 图片语法
+        """
+        article = await self.generate(
+            topic=topic, style=style,
+            word_count=word_count, ai_provider=ai_provider,
+        )
+
+        image_requests: list[ImageRequest] = []
+
+        if article.cover_image:
+            image_requests.append(ImageRequest(
+                id="cover",
+                ai_prompt=article.cover_image.get("ai_prompt", ""),
+                search_query=article.cover_image.get("search_query", topic),
+                alt_text=article.cover_image.get("alt_text", "封面图"),
+                is_cover=True,
+            ))
+
+        if article.images:
+            for img in article.images:
+                image_requests.append(ImageRequest(
+                    id=img.get("id", f"IMG{len(image_requests)}"),
+                    ai_prompt=img.get("ai_prompt", ""),
+                    search_query=img.get("search_query", topic),
+                    alt_text=img.get("alt_text", "配图"),
+                    position=img.get("position"),
+                    is_cover=False,
+                ))
+
+        if not image_requests:
+            logger.info("LLM 未输出图片描述，跳过图片获取")
+            return article
+
+        logger.info(f"开始获取 {len(image_requests)} 张图片...")
+        results = await image_service.fetch_all_images(image_requests)
+
+        images_metadata: dict = {"cover": None, "inline": []}
+        content = article.content
+
+        for result in results:
+            if result.id == "cover":
+                images_metadata["cover"] = {
+                    "path": result.local_path,
+                    "alt_text": result.alt_text,
+                    "source": result.source,
+                }
+            else:
+                images_metadata["inline"].append({
+                    "id": result.id,
+                    "path": result.local_path,
+                    "alt_text": result.alt_text,
+                    "source": result.source,
+                })
+                placeholder = f"[{result.id}]"
+                markdown_img = f"\n\n![{result.alt_text}](/api/images/{result.local_path})\n\n"
+                content = content.replace(placeholder, markdown_img)
+
+        # 清理未替换的占位符
+        content = re.sub(r'\[IMG\d+\]', '', content)
+
+        article.content = content
+        article.images = images_metadata  # type: ignore
+        logger.info(f"图片获取完成: {len(results)}/{len(image_requests)} 张成功")
+        return article
+
+    async def fetch_images_for_article(
+        self, article: GeneratedArticle
+    ) -> GeneratedArticle:
+        """为已生成的文章获取图片（用于流式生成完成后）"""
+        image_requests: list[ImageRequest] = []
+
+        if article.cover_image:
+            image_requests.append(ImageRequest(
+                id="cover",
+                ai_prompt=article.cover_image.get("ai_prompt", ""),
+                search_query=article.cover_image.get("search_query", ""),
+                alt_text=article.cover_image.get("alt_text", "封面图"),
+                is_cover=True,
+            ))
+
+        if article.images:
+            for img in article.images:
+                image_requests.append(ImageRequest(
+                    id=img.get("id", f"IMG{len(image_requests)}"),
+                    ai_prompt=img.get("ai_prompt", ""),
+                    search_query=img.get("search_query", ""),
+                    alt_text=img.get("alt_text", "配图"),
+                    is_cover=False,
+                ))
+
+        if not image_requests:
+            return article
+
+        results = await image_service.fetch_all_images(image_requests)
+
+        images_metadata: dict = {"cover": None, "inline": []}
+        content = article.content
+
+        for result in results:
+            if result.id == "cover":
+                images_metadata["cover"] = {
+                    "path": result.local_path,
+                    "alt_text": result.alt_text,
+                    "source": result.source,
+                }
+            else:
+                images_metadata["inline"].append({
+                    "id": result.id,
+                    "path": result.local_path,
+                    "alt_text": result.alt_text,
+                    "source": result.source,
+                })
+                placeholder = f"[{result.id}]"
+                markdown_img = f"\n\n![{result.alt_text}](/api/images/{result.local_path})\n\n"
+                content = content.replace(placeholder, markdown_img)
+
+        content = re.sub(r'\[IMG\d+\]', '', content)
+        article.content = content
+        article.images = images_metadata  # type: ignore
+        return article
 
     async def generate_stream(
         self,
@@ -226,27 +323,49 @@ class AIGenerator:
             ValueError: 当提供商不可用时
             Exception: 当 API 调用失败时
         """
-        provider = self._providers.get(ai_provider)
-        if not provider:
-            available = self.get_available_providers()
-            if not available:
-                raise ValueError(
-                    "没有可用的 AI 提供商，请先配置 API Key"
-                )
-            raise ValueError(
-                f"AI 提供商 '{ai_provider}' 不可用。"
-                f"可用的提供商: {', '.join(available)}"
-            )
+        provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(
             f"使用 {ai_provider} 流式生成文章: topic={topic}, "
             f"style={style}, word_count={word_count}"
         )
 
-        async for chunk in provider.generate_article_stream(
-            topic=topic, style=style, word_count=word_count
-        ):
-            yield chunk
+        try:
+            async for chunk in provider.generate_article_stream(
+                topic=topic, style=style, word_count=word_count
+            ):
+                yield chunk
+        except Exception as e:
+            logger.error(f"流式生成异常 ({ai_provider}): {e}")
+            raise
+
+    # ==================== JSON 解析工具 ====================
+
+    @staticmethod
+    def _parse_json_text(text: str) -> dict:
+        """
+        从 AI 返回的文本中解析 JSON，处理 markdown 代码块等情况。
+        多个方法共用此逻辑，避免重复。
+        """
+        text = text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+        try:
+            return json.loads(text, strict=False)
+        except json.JSONDecodeError:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start != -1 and end > start:
+                return json.loads(text[start:end], strict=False)
+            raise ValueError(
+                f"无法从 AI 返回内容中解析 JSON: {text[:200]}..."
+            )
 
     # ==================== 系列文章生成 ====================
 
@@ -279,29 +398,7 @@ class AIGenerator:
 
         try:
             text = await self._call_provider_chat(provider, system_prompt, user_prompt)
-
-            # 解析 JSON
-            text = text.strip()
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-            try:
-                data = json.loads(text)
-            except json.JSONDecodeError:
-                start = text.find("{")
-                end = text.rfind("}") + 1
-                if start != -1 and end > start:
-                    data = json.loads(text[start:end])
-                else:
-                    raise ValueError(
-                        f"无法从 AI 返回内容中解析系列大纲 JSON: {text[:200]}..."
-                    )
-
+            data = self._parse_json_text(text)
             logger.info(f"系列大纲生成成功: {data.get('series_title', '未知')}")
             return data
 

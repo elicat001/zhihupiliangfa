@@ -263,6 +263,22 @@ class TaskScheduler:
         )
         return tasks
 
+    async def cancel_task(self, task_id: int) -> None:
+        """
+        取消任务并移除对应的 APScheduler job
+
+        Args:
+            task_id: 任务 ID
+        """
+        # 尝试移除所有可能的 APScheduler job ID
+        for prefix in ("immediate_task_", "scheduled_task_", "batch_task_", "delayed_task_", "retry_task_"):
+            job_id = f"{prefix}{task_id}"
+            try:
+                self.scheduler.remove_job(job_id)
+                logger.info(f"已移除 APScheduler job: {job_id}")
+            except Exception:
+                pass  # job 可能不存在，忽略
+
     async def _execute_task(self, task_id: int):
         """
         执行发布任务
@@ -280,11 +296,15 @@ class TaskScheduler:
                 return
 
             if task.status not in ("pending",):
-                logger.warning(f"任务状态异常，跳过: status={task.status}")
+                logger.warning(
+                    f"任务状态不是 pending，跳过执行: "
+                    f"task_id={task_id}, status={task.status}"
+                )
                 return
 
             # 更新状态为 running
             task.status = "running"
+            task.updated_at = datetime.now()
             await session.commit()
 
             # 获取文章和账号
@@ -294,18 +314,21 @@ class TaskScheduler:
             if not article:
                 task.status = "failed"
                 task.error_message = "文章不存在"
+                task.updated_at = datetime.now()
                 await session.commit()
                 return
 
             if not account:
                 task.status = "failed"
                 task.error_message = "账号不存在"
+                task.updated_at = datetime.now()
                 await session.commit()
                 return
 
             if not account.is_active:
                 task.status = "failed"
                 task.error_message = "账号已禁用"
+                task.updated_at = datetime.now()
                 await session.commit()
                 return
 
@@ -357,11 +380,13 @@ class TaskScheduler:
                     title=article.title,
                     content=article.content,
                     tags=article.tags if isinstance(article.tags, list) else [],
+                    images=article.images if isinstance(article.images, dict) else None,
                 )
 
                 if result["success"]:
                     # 发布成功
                     task.status = "success"
+                    task.updated_at = datetime.now()
                     article.status = "published"
                     record.publish_status = "success"
                     record.zhihu_article_url = result.get("article_url")
@@ -397,6 +422,7 @@ class TaskScheduler:
                     task.status = "failed"
                     task.retry_count += 1
                     task.error_message = result.get("message", "未知错误")
+                    task.updated_at = datetime.now()
                     record.publish_status = "failed"
                     record.screenshot_path = result.get("screenshot_path")
                     record.finished_at = datetime.now()
@@ -422,6 +448,7 @@ class TaskScheduler:
                 task.status = "failed"
                 task.retry_count += 1
                 task.error_message = str(e)
+                task.updated_at = datetime.now()
                 record.publish_status = "failed"
                 record.finished_at = datetime.now()
                 await session.commit()
@@ -497,6 +524,7 @@ class TaskScheduler:
         - 使用公式 base_delay * 2^retry_count + random_jitter 计算退避时间
         - base_delay = 60 秒，jitter = 0~30 秒随机，最大延迟 30 分钟
         - 只有已过退避等待期的任务才会被重新调度
+        - 使用 updated_at（最后一次状态变更时间）作为退避基准，确保重试计时准确
         """
         async with async_session_factory() as session:
             stmt = select(PublishTask).where(
@@ -509,12 +537,14 @@ class TaskScheduler:
             now = datetime.now()
 
             for task in tasks:
-                # 使用 created_at 作为基准时间来计算退避
-                # 因为模型没有 updated_at 字段，用 created_at + 已重试次数推算
+                # 使用 updated_at 作为最后失败时间（即退避基准时间）
+                # 如果 updated_at 为空（旧数据迁移场景），回退到 created_at
+                last_failure_time = task.updated_at or task.created_at
+
                 # retry_count 已经在失败时自增过，所以用 retry_count - 1 计算本次退避
                 effective_retry = max(0, task.retry_count - 1)
                 next_retry_at = self._calculate_next_retry_time(
-                    effective_retry, task.created_at
+                    effective_retry, last_failure_time
                 )
 
                 if now < next_retry_at:
@@ -533,6 +563,7 @@ class TaskScheduler:
                     f"退避延迟已过"
                 )
                 task.status = "pending"
+                task.updated_at = now
                 await session.commit()
 
                 # 发布 task_update 事件（重试）

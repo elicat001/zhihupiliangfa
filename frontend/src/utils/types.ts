@@ -12,6 +12,8 @@ export interface GenerateParams {
   word_count: number;
   /** AI 提供商：openai / deepseek / claude */
   ai_provider?: string;
+  /** 是否启用 AI 配图 */
+  enable_images?: boolean;
 }
 
 /** AI生成的文章（尚未保存到数据库） */
@@ -38,6 +40,8 @@ export interface Article {
   ai_provider: string;
   status: ArticleStatus;
   created_at: string;
+  /** 图片元数据 */
+  images?: Record<string, unknown> | null;
   /** 文章分类 */
   category?: string | null;
   /** 系列文章 UUID */
@@ -100,6 +104,22 @@ export interface AgentGenerateParams {
   count: number;
   style?: string;
   word_count: number;
+  ai_provider: string;
+}
+
+/** 故事生成请求参数 */
+export interface StoryGenerateParams {
+  /** 参考素材原文 */
+  reference_text: string;
+  /** 可选的参考文章ID */
+  reference_article_ids?: number[];
+  /** 章节数量（3-8） */
+  chapter_count: number;
+  /** 总目标字数（8000-25000） */
+  total_word_count: number;
+  /** 故事类型 */
+  story_type: 'corruption' | 'historical' | 'suspense' | 'romance' | 'workplace';
+  /** AI 提供商 */
   ai_provider: string;
 }
 

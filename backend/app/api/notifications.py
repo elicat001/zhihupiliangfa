@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
 from app.models.notification import Notification
+from app.api.events import event_bus
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notifications", tags=["通知中心"])
@@ -137,6 +138,14 @@ async def create_notification(
     await db.refresh(notification)
 
     logger.info(f"创建通知: id={notification.id}, title={notification.title}")
+
+    # 发布 notification_created SSE 事件，通知前端实时刷新
+    await event_bus.publish("notification_created", {
+        "notification_id": notification.id,
+        "title": notification.title,
+        "type": notification.type,
+    })
+
     return NotificationResponse(
         id=notification.id,
         title=notification.title,

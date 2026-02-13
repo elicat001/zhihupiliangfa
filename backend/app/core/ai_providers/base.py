@@ -16,14 +16,20 @@ class GeneratedArticle:
     summary: str
     tags: list[str]
     word_count: int
+    images: list[dict] | None = None
+    cover_image: dict | None = None
 
 
 class BaseAIProvider(ABC):
     """AI 提供商抽象基类"""
 
     def __init__(self, api_key: str, base_url: str, model: str):
+        if not api_key:
+            raise ValueError(
+                f"{self.__class__.__name__} 初始化失败：API Key 不能为空"
+            )
         self.api_key = api_key
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/")
         self.model = model
 
     @property
@@ -52,6 +58,16 @@ class BaseAIProvider(ABC):
         """流式生成文章，逐 token 返回"""
         ...
         yield ""  # type: ignore
+
+    @abstractmethod
+    async def chat(
+        self, system_prompt: str, user_prompt: str
+    ) -> str:
+        """
+        通用聊天接口：发送 system + user 提示词，返回 AI 的文本响应。
+        每个提供商根据自身 API 格式实现此方法。
+        """
+        ...
 
     def _build_system_prompt(self) -> str:
         """
@@ -87,10 +103,30 @@ class BaseAIProvider(ABC):
 你必须严格按照以下 JSON 格式返回，不要返回任何其他内容：
 {
     "title": "文章标题（15-25字，含核心关键词）",
-    "content": "文章正文内容（Markdown 格式）",
+    "content": "文章正文内容（Markdown 格式，在每个 ## 标题后插入 [IMG1] [IMG2] 等图片占位符）",
     "summary": "100字以内的文章摘要，用于知乎文章描述",
-    "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"]
-}"""
+    "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"],
+    "images": [
+        {
+            "id": "IMG1",
+            "search_query": "english keywords for stock photo search",
+            "ai_prompt": "Detailed English image generation prompt, photorealistic style",
+            "alt_text": "中文图片描述"
+        }
+    ],
+    "cover_image": {
+        "search_query": "english keywords for cover photo",
+        "ai_prompt": "Wide banner style English image prompt, professional editorial",
+        "alt_text": "封面图描述"
+    }
+}
+
+## 图片占位符规则
+- 在正文每个 ## 二级标题之后，插入对应的 [IMG1]、[IMG2] 占位符
+- 共安排 3-5 张配图，确保 images 数组中有对应条目
+- search_query 必须用英文写，2-5 个关键词，用于图库搜索
+- ai_prompt 必须用英文写，描述一张专业的、适合文章配图的真实照片
+- alt_text 用中文写"""
 
     def _build_user_prompt(
         self, topic: str, style: str, word_count: int
@@ -200,13 +236,13 @@ class BaseAIProvider(ABC):
         text = text.strip()
 
         try:
-            data = json.loads(text)
+            data = json.loads(text, strict=False)
         except json.JSONDecodeError:
             # 尝试找到 JSON 对象
             start = text.find("{")
             end = text.rfind("}") + 1
             if start != -1 and end > start:
-                data = json.loads(text[start:end])
+                data = json.loads(text[start:end], strict=False)
             else:
                 raise ValueError(f"无法从 AI 返回内容中解析 JSON: {text[:200]}...")
 
@@ -218,10 +254,16 @@ class BaseAIProvider(ABC):
         # 计算字数（中文按字计算）
         actual_word_count = len(content.replace(" ", "").replace("\n", ""))
 
+        # 解析图片描述（可选，向后兼容）
+        images_data = data.get("images", None)
+        cover_image_data = data.get("cover_image", None)
+
         return GeneratedArticle(
             title=title,
             content=content,
             summary=summary,
             tags=tags if isinstance(tags, list) else [],
             word_count=actual_word_count,
+            images=images_data if isinstance(images_data, list) else None,
+            cover_image=cover_image_data if isinstance(cover_image_data, dict) else None,
         )

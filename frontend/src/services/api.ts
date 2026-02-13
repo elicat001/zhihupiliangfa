@@ -24,6 +24,7 @@ import type {
   SeriesGenerateParams,
   ArticleRewriteParams,
   AgentGenerateParams,
+  StoryGenerateParams,
 } from '../utils/types';
 
 // ============================================================
@@ -143,17 +144,21 @@ export const articleAPI = {
   seriesOutline: (data: SeriesOutlineParams): Promise<AxiosResponse<SeriesOutlineResponse>> =>
     api.post('/articles/series-outline', data),
 
-  /** 批量生成系列文章 */
+  /** 批量生成系列文章（超时 5 分钟） */
   seriesGenerate: (data: SeriesGenerateParams): Promise<AxiosResponse<Article[]>> =>
-    api.post('/articles/series-generate', data),
+    api.post('/articles/series-generate', data, { timeout: 300000 }),
 
   /** 改写文章 */
   rewrite: (data: ArticleRewriteParams): Promise<AxiosResponse<Article>> =>
     api.post('/articles/rewrite', data),
 
-  /** 智能体批量生成文章 */
+  /** 智能体批量生成文章（超时 5 分钟，因为需要分析+规划+逐篇生成） */
   agentGenerate: (data: AgentGenerateParams): Promise<AxiosResponse<Article[]>> =>
-    api.post('/articles/agent-generate', data),
+    api.post('/articles/agent-generate', data, { timeout: 300000 }),
+
+  /** 故事生成（超时 10 分钟，5阶段流水线需要大量LLM调用） */
+  storyGenerate: (data: StoryGenerateParams): Promise<AxiosResponse<Article[]>> =>
+    api.post('/articles/story-generate', data, { timeout: 600000 }),
 
   /** 导入文章（从 .md / .txt 文件） */
   import: (file: File): Promise<AxiosResponse<Article>> => {

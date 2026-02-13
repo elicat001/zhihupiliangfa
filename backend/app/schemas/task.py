@@ -39,10 +39,11 @@ class TaskResponse(BaseModel):
     article_id: int
     account_id: int
     status: str
-    scheduled_at: Optional[datetime]
-    retry_count: int
-    error_message: Optional[str]
+    scheduled_at: Optional[datetime] = None
+    retry_count: int = 0
+    error_message: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
     # 关联信息
     article_title: Optional[str] = None
     account_nickname: Optional[str] = None

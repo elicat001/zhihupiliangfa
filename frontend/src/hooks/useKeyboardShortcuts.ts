@@ -30,7 +30,7 @@ export function useKeyboardShortcuts() {
           case '1': e.preventDefault(); navigate('/'); break;
           case '2': e.preventDefault(); navigate('/generate'); break;
           case '3': e.preventDefault(); navigate('/articles'); break;
-          case '4': e.preventDefault(); navigate('/schedule'); break;
+          case '4': e.preventDefault(); navigate('/tasks'); break;
           case '5': e.preventDefault(); navigate('/history'); break;
           case '6': e.preventDefault(); navigate('/accounts'); break;
           case '7': e.preventDefault(); navigate('/settings'); break;

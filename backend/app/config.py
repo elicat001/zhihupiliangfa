@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 18900
 
     # ========== 数据库配置 ==========
     # SQLite 数据库文件路径
@@ -66,6 +66,20 @@ class Settings(BaseSettings):
     DOUBAO_API_KEY: Optional[str] = None
     DOUBAO_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
     DOUBAO_MODEL: str = "doubao-pro-32k"
+
+    # Google Gemini
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
+    # ========== 图片服务配置 ==========
+    # Unsplash API (https://unsplash.com/developers)
+    UNSPLASH_ACCESS_KEY: Optional[str] = None
+    # 图片存储路径
+    IMAGES_DIR: str = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "images",
+    )
 
     # ========== Playwright 浏览器配置 ==========
     BROWSER_HEADLESS: bool = False  # 是否无头模式

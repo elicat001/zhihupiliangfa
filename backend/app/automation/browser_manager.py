@@ -17,7 +17,7 @@ from playwright.async_api import (
 )
 
 from app.config import settings
-from app.automation.anti_detect import get_stealth_script
+from app.automation.anti_detect import get_stealth_script, get_random_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class BrowserManager:
             try:
                 self._playwright = await async_playwright().start()
 
-                # 启动 Chromium 浏览器
+                # 启动 Chromium 浏览器（用于临时上下文）
                 self._browser = await self._playwright.chromium.launch(
                     headless=settings.BROWSER_HEADLESS,
                     slow_mo=settings.BROWSER_SLOW_MO,
@@ -64,15 +64,14 @@ class BrowserManager:
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
                         "--disable-dev-shm-usage",
-                        "--disable-web-security",
                         "--lang=zh-CN,zh",
                     ],
                 )
 
                 self._initialized = True
                 logger.info("Playwright 初始化完成")
-            except Exception:
-                logger.error("Playwright 初始化失败，正在清理...")
+            except Exception as e:
+                logger.error(f"Playwright 初始化失败: {e}，正在清理...")
                 if self._browser:
                     try:
                         await self._browser.close()
@@ -87,6 +86,23 @@ class BrowserManager:
                     self._playwright = None
                 raise
 
+    async def _is_context_alive(self, context: BrowserContext) -> bool:
+        """
+        检查浏览器上下文是否仍然存活
+
+        Args:
+            context: 浏览器上下文
+
+        Returns:
+            bool: 上下文是否存活
+        """
+        try:
+            # 尝试访问 pages 属性来检测上下文是否存活
+            _ = context.pages
+            return True
+        except Exception:
+            return False
+
     async def get_persistent_context(
         self, profile_name: str
     ) -> BrowserContext:
@@ -100,8 +116,14 @@ class BrowserManager:
         Returns:
             BrowserContext: 浏览器上下文
         """
+        # 检查缓存中的上下文是否仍然存活
         if profile_name in self._contexts:
-            return self._contexts[profile_name]
+            cached_ctx = self._contexts[profile_name]
+            if await self._is_context_alive(cached_ctx):
+                return cached_ctx
+            else:
+                logger.warning(f"缓存的上下文已失效，重新创建: {profile_name}")
+                self._contexts.pop(profile_name, None)
 
         await self.initialize()
 
@@ -110,22 +132,21 @@ class BrowserManager:
 
         logger.info(f"创建持久化上下文: {profile_name}")
 
+        # 持久化上下文自带浏览器实例，不依赖 self._browser
         context = await self._playwright.chromium.launch_persistent_context(
             user_data_dir=profile_dir,
             headless=settings.BROWSER_HEADLESS,
             slow_mo=settings.BROWSER_SLOW_MO,
             viewport={"width": 1280, "height": 720},
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
+            user_agent=get_random_user_agent(),
             locale="zh-CN",
             timezone_id="Asia/Shanghai",
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-infobars",
                 "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
                 "--lang=zh-CN,zh",
             ],
         )
@@ -146,13 +167,12 @@ class BrowserManager:
         """
         await self.initialize()
 
+        if not self._browser:
+            raise RuntimeError("浏览器实例未初始化，无法创建临时上下文")
+
         context = await self._browser.new_context(
             viewport={"width": 1280, "height": 720},
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
+            user_agent=get_random_user_agent(),
             locale="zh-CN",
             timezone_id="Asia/Shanghai",
         )
@@ -186,7 +206,10 @@ class BrowserManager:
         context = self._contexts.pop(profile_name, None)
         if context:
             logger.info(f"关闭持久化上下文: {profile_name}")
-            await context.close()
+            try:
+                await context.close()
+            except Exception as e:
+                logger.error(f"关闭持久化上下文 {profile_name} 失败: {e}")
 
     async def close_all(self):
         """关闭所有浏览器实例和上下文"""

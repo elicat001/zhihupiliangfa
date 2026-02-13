@@ -5,6 +5,8 @@ FastAPI 应用主入口
 
 import logging
 import os
+import sys
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -37,8 +39,8 @@ logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI):
     """
     应用生命周期管理
-    启动时：初始化数据库、启动任务调度器
-    关闭时：关闭调度器、关闭浏览器、关闭数据库连接
+    启动时：初始化数据库 -> 启动任务调度器（容错降级）
+    关闭时：关闭调度器 -> 关闭浏览器 -> 关闭数据库连接（每步独立 try/except）
     """
     # ---- 启动 ----
     logger.info(f"正在启动 {settings.APP_NAME} v{settings.APP_VERSION}...")
@@ -46,15 +48,33 @@ async def lifespan(app: FastAPI):
     # 确保数据目录存在
     os.makedirs(os.path.dirname(settings.DATABASE_PATH), exist_ok=True)
     os.makedirs(settings.SCREENSHOT_DIR, exist_ok=True)
+    os.makedirs(settings.IMAGES_DIR, exist_ok=True)
     os.makedirs(settings.BROWSER_PROFILES_DIR, exist_ok=True)
 
-    # 初始化数据库
+    # 1. 初始化数据库（必须成功）
     await init_db()
     logger.info("数据库初始化完成")
 
-    # 启动任务调度器
-    task_scheduler.start()
-    logger.info("任务调度器已启动")
+    # 2. 启动任务调度器（失败不影响应用启动）
+    try:
+        task_scheduler.start()
+        logger.info("任务调度器已启动")
+    except Exception as e:
+        logger.error(f"任务调度器启动失败（定时任务不可用）: {e}")
+
+    # 3. 挂载静态文件目录（在目录创建之后挂载）
+    if os.path.isdir(settings.SCREENSHOT_DIR):
+        app.mount(
+            "/screenshots",
+            StaticFiles(directory=settings.SCREENSHOT_DIR),
+            name="screenshots",
+        )
+    if os.path.isdir(settings.IMAGES_DIR):
+        app.mount(
+            "/api/images",
+            StaticFiles(directory=settings.IMAGES_DIR),
+            name="images",
+        )
 
     logger.info(
         f"应用启动完成，监听 http://{settings.HOST}:{settings.PORT}"
@@ -63,17 +83,26 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # ---- 关闭 ----
+    # ---- 关闭（每步独立容错） ----
     logger.info("正在关闭应用...")
 
-    # 关闭任务调度器
-    task_scheduler.shutdown()
+    try:
+        task_scheduler.shutdown()
+        logger.info("任务调度器已关闭")
+    except Exception as e:
+        logger.error(f"关闭任务调度器失败: {e}")
 
-    # 关闭浏览器管理器
-    await browser_manager.close_all()
+    try:
+        await browser_manager.close_all()
+        logger.info("浏览器管理器已关闭")
+    except Exception as e:
+        logger.error(f"关闭浏览器管理器失败: {e}")
 
-    # 关闭数据库连接
-    await close_db()
+    try:
+        await close_db()
+        logger.info("数据库连接已关闭")
+    except Exception as e:
+        logger.error(f"关闭数据库连接失败: {e}")
 
     logger.info("应用已关闭")
 
@@ -96,14 +125,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ========== 挂载静态文件（截图目录） ==========
-if os.path.exists(settings.SCREENSHOT_DIR):
-    app.mount(
-        "/screenshots",
-        StaticFiles(directory=settings.SCREENSHOT_DIR),
-        name="screenshots",
-    )
 
 # ========== 注册路由 ==========
 app.include_router(api_router)
@@ -129,6 +150,9 @@ async def health_check():
 
 # ========== 直接运行入口 ==========
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
     import uvicorn
 
     uvicorn.run(

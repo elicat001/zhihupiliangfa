@@ -4,7 +4,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +57,7 @@ async def get_optimal_publish_times(
         list of {"hour": int, "score": float, "reason": str}
     """
     # 1. 查询历史发布记录，按小时分组
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
 
     # 使用 SQLite 的 strftime 提取小时
     hour_col = func.strftime('%H', PublishRecord.started_at).label('hour')
@@ -129,7 +129,7 @@ async def get_publish_hour_distribution(
     Returns:
         list of {"hour": int, "total": int, "success": int, "failed": int}
     """
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
     hour_col = func.strftime('%H', PublishRecord.started_at).label('hour')
 
     success_case = case(

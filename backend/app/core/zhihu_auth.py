@@ -40,65 +40,63 @@ class ZhihuAuth:
         """
         logger.info(f"检查登录态: {profile_name}")
 
+        page = None
         try:
             context = await browser_manager.get_persistent_context(profile_name)
             page = await browser_manager.new_page(context)
 
-            try:
-                # 访问知乎首页
-                await page.goto(self.ZHIHU_HOME_URL, wait_until="domcontentloaded")
-                await HumanBehavior.random_delay(2000, 3000)
+            # 访问知乎首页
+            await page.goto(self.ZHIHU_HOME_URL, wait_until="domcontentloaded")
+            await HumanBehavior.random_delay(2000, 3000)
 
-                # 尝试调用个人信息 API
-                response = await page.evaluate("""
-                    async () => {
-                        try {
-                            const res = await fetch('https://www.zhihu.com/api/v4/me', {
-                                credentials: 'include'
-                            });
-                            if (res.ok) {
-                                const data = await res.json();
-                                return { success: true, name: data.name || '' };
-                            }
-                            return { success: false, name: '' };
-                        } catch (e) {
-                            return { success: false, name: '' };
+            # 尝试调用个人信息 API
+            response = await page.evaluate("""
+                async () => {
+                    try {
+                        const res = await fetch('https://www.zhihu.com/api/v4/me', {
+                            credentials: 'include'
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            return { success: true, name: data.name || '' };
                         }
+                        return { success: false, name: '' };
+                    } catch (e) {
+                        return { success: false, name: '' };
                     }
-                """)
+                }
+            """)
 
-                if response and response.get("success"):
-                    nickname = response.get("name", "")
-                    logger.info(f"登录态有效: {nickname}")
-                    return {
-                        "is_logged_in": True,
-                        "nickname": nickname,
-                        "message": f"登录态有效，当前用户: {nickname}",
-                    }
-                else:
-                    # 通过页面元素判断
-                    try:
-                        avatar = await page.wait_for_selector(
-                            'button[aria-label="个人中心"], .AppHeader-profileAvatar',
-                            timeout=5000,
-                        )
-                        if avatar:
-                            return {
-                                "is_logged_in": True,
-                                "nickname": "",
-                                "message": "登录态有效（通过页面元素检测）",
-                            }
-                    except Exception:
-                        pass
+            if response and response.get("success"):
+                nickname = response.get("name", "")
+                logger.info(f"登录态有效: {nickname}")
+                return {
+                    "is_logged_in": True,
+                    "nickname": nickname,
+                    "message": f"登录态有效，当前用户: {nickname}",
+                }
+            else:
+                # 通过页面元素判断
+                try:
+                    avatar = await page.wait_for_selector(
+                        'button[aria-label="个人中心"], .AppHeader-profileAvatar',
+                        timeout=5000,
+                    )
+                    if avatar:
+                        return {
+                            "is_logged_in": True,
+                            "nickname": "",
+                            "message": "登录态有效（通过页面元素检测）",
+                        }
+                except Exception:
+                    pass
 
-                    logger.info("登录态无效")
-                    return {
-                        "is_logged_in": False,
-                        "nickname": None,
-                        "message": "未登录或登录已过期",
-                    }
-            finally:
-                await page.close()
+                logger.info("登录态无效")
+                return {
+                    "is_logged_in": False,
+                    "nickname": None,
+                    "message": "未登录或登录已过期",
+                }
 
         except Exception as e:
             logger.error(f"检查登录态失败: {e}")
@@ -107,6 +105,12 @@ class ZhihuAuth:
                 "nickname": None,
                 "message": f"检查失败: {str(e)}",
             }
+        finally:
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
 
     async def cookie_login(
         self, profile_name: str, cookie_data: str
@@ -114,9 +118,10 @@ class ZhihuAuth:
         """
         通过导入 Cookie 登录
 
-        支持两种格式：
+        支持三种格式：
         1. JSON 数组: [{"name": "...", "value": "...", ...}, ...]
-        2. 分号分隔: "key1=val1; key2=val2; ..."
+        2. JSON 对象: {"key1": "val1", "key2": "val2", ...}
+        3. 分号分隔: "key1=val1; key2=val2; ..."
 
         Args:
             profile_name: 浏览器配置文件名
@@ -133,7 +138,7 @@ class ZhihuAuth:
             # 解析 Cookie
             cookies = self._parse_cookies(cookie_data)
             if not cookies:
-                return {"success": False, "message": "无法解析 Cookie 数据"}
+                return {"success": False, "message": "无法解析 Cookie 数据，请检查格式"}
 
             # 添加 Cookie 到浏览器上下文
             await context.add_cookies(cookies)
@@ -168,88 +173,102 @@ class ZhihuAuth:
         """
         logger.info(f"扫码登录: {profile_name}")
 
+        page = None
         try:
             context = await browser_manager.get_persistent_context(profile_name)
             page = await browser_manager.new_page(context)
 
+            # 访问知乎登录页
+            await page.goto(self.ZHIHU_LOGIN_URL, wait_until="domcontentloaded")
+            await HumanBehavior.random_delay(2000, 4000)
+
+            # 点击「扫码登录」 tab（如果存在的话）
             try:
-                # 访问知乎登录页
-                await page.goto(self.ZHIHU_LOGIN_URL, wait_until="domcontentloaded")
-                await HumanBehavior.random_delay(2000, 4000)
+                qr_tab = page.locator(
+                    'div[class*="QRCode"], '
+                    'button:has-text("扫码登录"), '
+                    'div:has-text("扫码登录")'
+                )
+                if await qr_tab.count() > 0:
+                    await qr_tab.first.click()
+                    await HumanBehavior.random_delay(1000, 2000)
+            except Exception:
+                logger.info("未找到扫码登录 tab，可能已经在扫码页")
 
-                # 点击「扫码登录」 tab（如果存在的话）
+            # 等待二维码出现
+            qr_image = None
+            qr_selectors = [
+                'img[alt*="二维码"]',
+                'img[class*="qrcode"]',
+                'img[class*="QRCode"]',
+                'div[class*="QRCode"] img',
+                'canvas[class*="qrcode"]',
+                '.SignFlow-qrcode img',
+            ]
+
+            for selector in qr_selectors:
                 try:
-                    qr_tab = page.locator('div[class*="QRCode"], button:has-text("扫码登录"), div:has-text("扫码登录")')
-                    if await qr_tab.count() > 0:
-                        await qr_tab.first.click()
-                        await HumanBehavior.random_delay(1000, 2000)
-                except Exception:
-                    logger.info("未找到扫码登录 tab，可能已经在扫码页")
-
-                # 等待二维码出现
-                qr_image = None
-                qr_selectors = [
-                    'img[alt*="二维码"]',
-                    'img[class*="qrcode"]',
-                    'img[class*="QRCode"]',
-                    'div[class*="QRCode"] img',
-                    'canvas[class*="qrcode"]',
-                    '.SignFlow-qrcode img',
-                ]
-
-                for selector in qr_selectors:
-                    try:
-                        qr_image = await page.wait_for_selector(
-                            selector, timeout=5000
-                        )
-                        if qr_image:
-                            break
-                    except Exception:
-                        continue
-
-                if qr_image:
-                    # 截取二维码图片
-                    screenshot_bytes = await qr_image.screenshot()
-                    qrcode_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-                    logger.info("已获取二维码截图")
-
-                    # 启动后台任务等待用户扫码（传入 account_id 以便更新数据库）
-                    task = asyncio.create_task(
-                        self._wait_for_qr_scan(page, profile_name, account_id)
+                    qr_image = await page.wait_for_selector(
+                        selector, timeout=5000
                     )
-                    task.add_done_callback(self._on_scan_task_done)
+                    if qr_image:
+                        break
+                except Exception:
+                    continue
 
-                    return {
-                        "success": True,
-                        "qrcode_base64": qrcode_base64,
-                        "message": "请使用知乎 APP 扫描二维码",
-                    }
-                else:
-                    # 如果找不到二维码元素，截取整个页面
-                    screenshot_bytes = await page.screenshot()
-                    qrcode_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-                    return {
-                        "success": True,
-                        "qrcode_base64": qrcode_base64,
-                        "message": "未找到二维码元素，已返回登录页截图，请查看",
-                    }
+            if qr_image:
+                # 截取二维码图片
+                screenshot_bytes = await qr_image.screenshot()
+                qrcode_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
+                logger.info("已获取二维码截图")
 
-            except Exception as e:
-                logger.error(f"获取二维码失败: {e}")
-                await page.close()
+                # 启动后台任务等待用户扫码（传入 account_id 以便更新数据库）
+                # 注意：page 的所有权转移给后台任务，不在此处关闭
+                task = asyncio.create_task(
+                    self._wait_for_qr_scan(page, profile_name, account_id)
+                )
+                task.add_done_callback(self._on_scan_task_done)
+                # page 已交给后台任务管理，不在 finally 中关闭
+                page = None
+
                 return {
-                    "success": False,
-                    "qrcode_base64": None,
-                    "message": f"获取二维码失败: {str(e)}",
+                    "success": True,
+                    "qrcode_base64": qrcode_base64,
+                    "message": "请使用知乎 APP 扫描二维码",
+                }
+            else:
+                # 如果找不到二维码元素，截取整个页面
+                screenshot_bytes = await page.screenshot()
+                qrcode_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
+
+                # 同样启动后台任务等待扫码（用户可能手动在页面上操作）
+                task = asyncio.create_task(
+                    self._wait_for_qr_scan(page, profile_name, account_id)
+                )
+                task.add_done_callback(self._on_scan_task_done)
+                # page 已交给后台任务管理
+                page = None
+
+                return {
+                    "success": True,
+                    "qrcode_base64": qrcode_base64,
+                    "message": "未找到二维码元素，已返回登录页截图，请查看",
                 }
 
         except Exception as e:
-            logger.error(f"扫码登录初始化失败: {type(e).__name__}: {e}")
+            logger.error(f"扫码登录失败: {type(e).__name__}: {e}")
             return {
                 "success": False,
                 "qrcode_base64": None,
-                "message": f"初始化失败: {str(e)}",
+                "message": f"扫码登录失败: {str(e)}",
             }
+        finally:
+            # 只有在 page 没有被后台任务接管时才关闭
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
 
     async def _wait_for_qr_scan(self, page, profile_name: str, account_id: int = 0):
         """
@@ -279,7 +298,7 @@ class ZhihuAuth:
                     scan_success = True
                     break
             else:
-                logger.warning(f"扫码超时: {profile_name}")
+                logger.warning(f"扫码超时（120秒）: {profile_name}")
 
         except Exception as e:
             logger.error(f"等待扫码失败: {e}")
@@ -325,9 +344,10 @@ class ZhihuAuth:
         """
         解析 Cookie 数据
 
-        支持两种格式：
-        1. JSON 数组格式
-        2. 分号分隔格式
+        支持三种格式：
+        1. JSON 数组格式: [{"name": "...", "value": "...", ...}, ...]
+        2. JSON 对象格式: {"key1": "val1", "key2": "val2", ...}
+        3. 分号分隔格式: "key1=val1; key2=val2; ..."
 
         Args:
             cookie_data: Cookie 字符串
@@ -341,16 +361,40 @@ class ZhihuAuth:
         # 尝试 JSON 格式
         try:
             parsed = json.loads(cookie_data)
+
             if isinstance(parsed, list):
+                # JSON 数组格式
                 for item in parsed:
+                    if not isinstance(item, dict):
+                        continue
+                    name = str(item.get("name", "")).strip()
+                    value = str(item.get("value", "")).strip()
+                    if not name:
+                        continue
                     cookie = {
-                        "name": item.get("name", ""),
-                        "value": item.get("value", ""),
+                        "name": name,
+                        "value": value,
                         "domain": item.get("domain", ".zhihu.com"),
                         "path": item.get("path", "/"),
                     }
                     cookies.append(cookie)
                 return cookies
+
+            elif isinstance(parsed, dict):
+                # JSON 对象格式: {"key1": "val1", ...}
+                for name, value in parsed.items():
+                    name = str(name).strip()
+                    value = str(value).strip()
+                    if not name:
+                        continue
+                    cookies.append({
+                        "name": name,
+                        "value": value,
+                        "domain": ".zhihu.com",
+                        "path": "/",
+                    })
+                return cookies
+
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -361,9 +405,13 @@ class ZhihuAuth:
                 pair = pair.strip()
                 if "=" in pair:
                     name, _, value = pair.partition("=")
+                    name = name.strip()
+                    value = value.strip()
+                    if not name:
+                        continue
                     cookies.append({
-                        "name": name.strip(),
-                        "value": value.strip(),
+                        "name": name,
+                        "value": value,
                         "domain": ".zhihu.com",
                         "path": "/",
                     })

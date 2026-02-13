@@ -21,6 +21,10 @@ class ArticleGenerateRequest(BaseModel):
         default="deepseek",
         description="AI 提供商：openai / deepseek / claude",
     )
+    enable_images: bool = Field(
+        default=False,
+        description="是否启用 AI 配图（封面+正文插图）",
+    )
 
 
 class ArticleCreateRequest(BaseModel):
@@ -31,6 +35,7 @@ class ArticleCreateRequest(BaseModel):
     tags: Optional[list[str]] = Field(default=[], description="话题标签")
     ai_provider: Optional[str] = Field(default="manual", description="来源")
     category: Optional[str] = Field(default=None, description="文章分类")
+    images: Optional[dict | list] = Field(default=None, description="图片数据")
 
 
 class ArticleUpdateRequest(BaseModel):
@@ -106,6 +111,8 @@ class ArticleResponse(BaseModel):
     status: str
     created_at: datetime
     category: Optional[str] = None
+    # 图片数据
+    images: Optional[dict | list] = None
     # 系列文章字段
     series_id: Optional[str] = None
     series_order: Optional[int] = None
@@ -128,4 +135,31 @@ class AgentGenerateRequest(BaseModel):
     count: int = Field(default=5, ge=1, le=20, description="要生成的文章数量")
     style: Optional[str] = Field(default=None, description="写作风格（为空则由 AI 自动推荐）")
     word_count: int = Field(default=1500, ge=300, le=10000, description="每篇目标字数")
+    ai_provider: str = Field(default="deepseek", description="AI 提供商")
+
+
+# ==================== 故事生成请求模型 ====================
+
+class StoryGenerateRequest(BaseModel):
+    """故事生成请求"""
+    reference_text: str = Field(
+        ..., min_length=50, max_length=50000,
+        description="参考素材原文（新闻、背景资料、故事种子等）",
+    )
+    reference_article_ids: Optional[list[int]] = Field(
+        default=None, max_length=5,
+        description="可选：已有文章ID作为额外参考",
+    )
+    chapter_count: int = Field(
+        default=5, ge=3, le=8,
+        description="章节数量（3-8章）",
+    )
+    total_word_count: int = Field(
+        default=15000, ge=8000, le=25000,
+        description="总目标字数（8000-25000）",
+    )
+    story_type: str = Field(
+        default="corruption",
+        description="故事类型：corruption/historical/suspense/romance/workplace",
+    )
     ai_provider: str = Field(default="deepseek", description="AI 提供商")

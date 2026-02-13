@@ -10,6 +10,7 @@
 
 import json
 import logging
+import re
 import uuid
 from typing import Optional
 
@@ -34,7 +35,7 @@ class ArticleAgent:
         )
 
     def _parse_json_response(self, text: str) -> dict:
-        """解析 AI 返回的 JSON"""
+        """解析 AI 返回的 JSON（strict=False 允许控制字符）"""
         text = text.strip()
         if text.startswith("```json"):
             text = text[7:]
@@ -45,17 +46,17 @@ class ArticleAgent:
         text = text.strip()
 
         try:
-            return json.loads(text)
+            return json.loads(text, strict=False)
         except json.JSONDecodeError:
             start = text.find("{")
             end = text.rfind("}") + 1
             if start != -1 and end > start:
-                return json.loads(text[start:end])
+                return json.loads(text[start:end], strict=False)
             # Try finding array
             start = text.find("[")
             end = text.rfind("]") + 1
             if start != -1 and end > start:
-                return json.loads(text[start:end])
+                return json.loads(text[start:end], strict=False)
             raise ValueError(f"无法解析 AI 返回的 JSON: {text[:200]}...")
 
     async def analyze_articles(
@@ -216,7 +217,24 @@ class ArticleAgent:
             key_points = article_plan.get("key_points", [])
             points_text = "\n".join(f"- {p}" for p in key_points)
 
-            system_prompt = provider._build_system_prompt()
+            # 使用简洁的系统提示词（不含图片指令，避免与 JSON 格式冲突）
+            system_prompt = """你是一位拥有10万+粉丝的知乎头部创作者，文章多次登上知乎热榜。
+
+## 知乎排版规范
+- 使用 ## 二级标题分段，每段控制在 300-500 字
+- 重要观点用 **加粗** 标注
+- 适当使用 > 引用块来突出金句或数据
+- 使用有序/无序列表来归纳要点
+- 段与段之间用 --- 分割线过渡
+
+## 输出格式要求
+你必须严格按照以下 JSON 格式返回，不要返回任何其他内容：
+{
+    "title": "文章标题（15-25字，含核心关键词）",
+    "content": "文章正文内容（Markdown 格式，不要插入任何图片占位符）",
+    "summary": "100字以内的文章摘要",
+    "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"]
+}"""
 
             user_prompt = f"""请以「{title}」为标题，写一篇知乎专栏文章。
 
@@ -239,13 +257,7 @@ class ArticleAgent:
 - 选择 5 个知乎上热度高的相关话题标签
 - 文末加一个引导评论的互动问题
 
-请严格按照以下 JSON 格式返回：
-{{
-    "title": "文章标题",
-    "content": "文章正文（Markdown 格式）",
-    "summary": "100字以内的文章摘要",
-    "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"]
-}}"""
+请严格按照指定的 JSON 格式返回。"""
 
             logger.info(
                 f"Agent 生成阶段：[{idx + 1}/{len(planned_articles)}] {title}"
@@ -253,14 +265,22 @@ class ArticleAgent:
 
             try:
                 text = await self._call_chat(provider, system_prompt, user_prompt)
-                article_data = provider._parse_response(text)
+                data = self._parse_json_response(text)
+
+                content = data.get("content", "")
+                # 清理可能残留的图片占位符
+                content = re.sub(r'\[IMG\d+\]', '', content)
+                title_out = data.get("title", title)
+                actual_word_count = len(
+                    content.replace(" ", "").replace("\n", "")
+                )
 
                 generated.append({
-                    "title": article_data.title,
-                    "content": article_data.content,
-                    "summary": article_data.summary,
-                    "tags": article_data.tags,
-                    "word_count": article_data.word_count,
+                    "title": title_out,
+                    "content": content,
+                    "summary": data.get("summary", ""),
+                    "tags": data.get("tags", []),
+                    "word_count": actual_word_count,
                     "ai_provider": ai_provider,
                     "series_id": series_id,
                     "series_order": idx + 1,
@@ -269,7 +289,7 @@ class ArticleAgent:
 
                 logger.info(
                     f"Agent 生成完成：[{idx + 1}/{len(planned_articles)}] "
-                    f"{article_data.title} (字数: {article_data.word_count})"
+                    f"{title_out} (字数: {actual_word_count})"
                 )
             except Exception as e:
                 logger.error(

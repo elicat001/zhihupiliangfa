@@ -3,12 +3,17 @@
 记录系统运行事件，方便排查问题
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import Integer, String, Text, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
+def _utcnow():
+    """返回当前 UTC 时间（兼容 Python 3.12+ 弃用 datetime.utcnow）"""
+    return datetime.now(timezone.utc)
 
 
 class SystemLog(Base):
@@ -26,5 +31,5 @@ class SystemLog(Base):
     details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=None)
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=_utcnow
     )

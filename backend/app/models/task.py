@@ -3,12 +3,17 @@
 记录每一次发布的任务和执行结果
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+
+def _utcnow():
+    """返回当前 UTC 时间（兼容 Python 3.12+ 弃用 datetime.utcnow）"""
+    return datetime.now(timezone.utc)
 
 
 class PublishTask(Base):
@@ -24,7 +29,7 @@ class PublishTask(Base):
     account_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("accounts.id"), nullable=False
     )
-    # 任务状态：pending / running / success / failed
+    # 任务状态：pending / running / success / failed / cancelled
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     # 计划执行时间（为 None 表示立即执行）
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(
@@ -38,7 +43,11 @@ class PublishTask(Base):
     )
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=_utcnow
+    )
+    # 更新时间（用于追踪最后一次状态变更，尤其是失败时间，以支持精确的指数退避重试）
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, default=_utcnow, onupdate=_utcnow
     )
 
     # 关系（用于联查）

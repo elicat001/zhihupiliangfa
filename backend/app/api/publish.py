@@ -23,6 +23,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/publish", tags=["发布操作"])
 
 
+def _validate_account(account: Account) -> None:
+    """
+    校验账号是否可用于发布
+
+    Raises:
+        HTTPException: 如果账号不可用
+    """
+    if not account.is_active:
+        raise HTTPException(status_code=400, detail="账号已禁用")
+    if account.login_status not in ("logged_in",):
+        raise HTTPException(
+            status_code=400,
+            detail=f"账号未登录（当前状态: {account.login_status}），请先登录后再发布",
+        )
+
+
 @router.post("/now", response_model=TaskResponse, summary="立即发布")
 async def publish_now(
     request: PublishNowRequest,
@@ -39,12 +55,11 @@ async def publish_now(
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
 
-    # 验证账号存在且活跃
+    # 验证账号存在且可用
     account = await db.get(Account, request.account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="账号已禁用")
+    _validate_account(account)
 
     try:
         task = await task_scheduler.add_immediate_task(
@@ -66,6 +81,7 @@ async def publish_now(
             retry_count=task.retry_count,
             error_message=task.error_message,
             created_at=task.created_at,
+            updated_at=getattr(task, "updated_at", None),
             article_title=article.title,
             account_nickname=account.nickname,
         )
@@ -94,12 +110,11 @@ async def publish_schedule(
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
 
-    # 验证账号存在且活跃
+    # 验证账号存在且可用
     account = await db.get(Account, request.account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="账号已禁用")
+    _validate_account(account)
 
     try:
         task = await task_scheduler.add_scheduled_task(
@@ -122,6 +137,7 @@ async def publish_schedule(
             retry_count=task.retry_count,
             error_message=task.error_message,
             created_at=task.created_at,
+            updated_at=getattr(task, "updated_at", None),
             article_title=article.title,
             account_nickname=account.nickname,
         )
@@ -148,8 +164,7 @@ async def publish_batch(
     account = await db.get(Account, request.account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="账号已禁用")
+    _validate_account(account)
 
     # 验证所有文章
     for article_id in request.article_ids:
@@ -186,6 +201,7 @@ async def publish_batch(
                     retry_count=task.retry_count,
                     error_message=task.error_message,
                     created_at=task.created_at,
+                    updated_at=getattr(task, "updated_at", None),
                     article_title=article.title if article else None,
                     account_nickname=account.nickname,
                 )
