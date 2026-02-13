@@ -104,22 +104,31 @@ class Settings(BaseSettings):
     )
 
     # ========== CORS 配置 ==========
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:5176",
-        "http://localhost:5177",
-        "http://localhost:5178",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-        "http://127.0.0.1:5176",
-        "http://127.0.0.1:5177",
-        "http://127.0.0.1:5178",
-    ]
+    # Vercel 部署域名通过环境变量 VERCEL_FRONTEND_URL 配置
+    # 例如: VERCEL_FRONTEND_URL=https://your-app.vercel.app
+    VERCEL_FRONTEND_URL: Optional[str] = None
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        origins = [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:5176",
+            "http://localhost:5177",
+            "http://localhost:5178",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:5175",
+            "http://127.0.0.1:5176",
+            "http://127.0.0.1:5177",
+            "http://127.0.0.1:5178",
+        ]
+        if self.VERCEL_FRONTEND_URL:
+            origins.append(self.VERCEL_FRONTEND_URL.rstrip("/"))
+        return origins
 
     model_config = {
         "env_file": os.path.join(

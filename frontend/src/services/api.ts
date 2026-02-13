@@ -31,8 +31,16 @@ import type {
 // Axios 实例 & 拦截器
 // ============================================================
 
+/**
+ * API Base URL:
+ * - 开发环境: 为空，走 Vite dev server 的 proxy（/api -> localhost:18901）
+ * - 生产环境: 通过 VITE_API_BASE_URL 环境变量指定后端地址
+ *   例如 Vercel 部署时设置 VITE_API_BASE_URL=https://your-backend.com/api
+ */
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const api: AxiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
@@ -129,7 +137,7 @@ export const articleAPI = {
    * 返回原始 Response 供调用方消费 ReadableStream
    */
   generateStream: (params: GenerateParams): Promise<Response> =>
-    fetch('/api/articles/generate-stream', {
+    fetch(`${API_BASE_URL}/articles/generate-stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
