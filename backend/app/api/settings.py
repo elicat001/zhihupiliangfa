@@ -26,7 +26,7 @@ _ENV_FILE_PATH = os.path.join(
 # ==================== 响应/请求模型 ====================
 
 class AIConfigResponse(BaseModel):
-    provider: str = "deepseek"
+    provider: str = "gemini"
     api_key: str = ""
     base_url: str = ""
     model: str = ""
@@ -77,11 +77,11 @@ def _mask_key(key: Optional[str]) -> str:
 async def get_settings():
     """获取系统设置（API Key 部分遮蔽）"""
     # 判断当前激活的 AI 提供商
-    if settings.DEEPSEEK_API_KEY:
-        provider = "deepseek"
-        api_key = _mask_key(settings.DEEPSEEK_API_KEY)
-        base_url = settings.DEEPSEEK_BASE_URL
-        model = settings.DEEPSEEK_MODEL
+    if settings.GEMINI_API_KEY:
+        provider = "gemini"
+        api_key = _mask_key(settings.GEMINI_API_KEY)
+        base_url = settings.GEMINI_BASE_URL
+        model = settings.GEMINI_MODEL
     elif settings.OPENAI_API_KEY:
         provider = "openai"
         api_key = _mask_key(settings.OPENAI_API_KEY)
@@ -93,10 +93,10 @@ async def get_settings():
         base_url = settings.CLAUDE_BASE_URL
         model = settings.CLAUDE_MODEL
     else:
-        provider = "deepseek"
+        provider = "gemini"
         api_key = ""
-        base_url = settings.DEEPSEEK_BASE_URL
-        model = settings.DEEPSEEK_MODEL
+        base_url = settings.GEMINI_BASE_URL
+        model = settings.GEMINI_MODEL
 
     return SettingsResponse(
         ai_config=AIConfigResponse(
@@ -165,21 +165,21 @@ async def update_settings(request: SettingsUpdateRequest):
     # AI 配置
     if request.ai_config:
         ai = request.ai_config
-        provider = ai.provider or "deepseek"
+        provider = ai.provider or "gemini"
 
         # 如果 api_key 包含 *** 则说明是遮蔽后的值，不更新
         real_key = ai.api_key if "***" not in ai.api_key else None
 
-        if provider == "deepseek":
+        if provider == "gemini":
             if real_key:
-                settings.DEEPSEEK_API_KEY = real_key
-                env_updates["DEEPSEEK_API_KEY"] = real_key
+                settings.GEMINI_API_KEY = real_key
+                env_updates["GEMINI_API_KEY"] = real_key
             if ai.base_url:
-                settings.DEEPSEEK_BASE_URL = ai.base_url
-                env_updates["DEEPSEEK_BASE_URL"] = ai.base_url
+                settings.GEMINI_BASE_URL = ai.base_url
+                env_updates["GEMINI_BASE_URL"] = ai.base_url
             if ai.model:
-                settings.DEEPSEEK_MODEL = ai.model
-                env_updates["DEEPSEEK_MODEL"] = ai.model
+                settings.GEMINI_MODEL = ai.model
+                env_updates["GEMINI_MODEL"] = ai.model
         elif provider == "openai":
             if real_key:
                 settings.OPENAI_API_KEY = real_key

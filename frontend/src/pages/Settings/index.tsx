@@ -178,7 +178,7 @@ const Settings: React.FC = () => {
               name="model"
               rules={[{ required: true, message: '请输入模型名称' }]}
             >
-              <Input placeholder="如 gpt-4, deepseek-chat, glm-4" />
+              <Input placeholder="如 gpt-5.2, deepseek-chat, glm-5" />
             </Form.Item>
           </Col>
         </Row>

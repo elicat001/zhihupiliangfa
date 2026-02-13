@@ -10,6 +10,7 @@
 5. 去AI味 (polish_story) — 替换模板表达、添加口语化元素、调整节奏
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -20,6 +21,10 @@ from app.core.ai_generator import ai_generator
 from app.core.ai_providers.base import BaseAIProvider
 
 logger = logging.getLogger(__name__)
+
+# 阶段级重试配置（在 provider 级重试之上再加一层保护）
+_PHASE_MAX_RETRIES = 2
+_PHASE_BASE_DELAY = 5  # 秒
 
 # 故事类型对应的敏感题材处理规则
 STORY_TYPE_RULES = {
@@ -58,10 +63,26 @@ class StoryAgent:
     async def _call_chat(
         self, provider: BaseAIProvider, system_prompt: str, user_prompt: str
     ) -> str:
-        """统一调用 AI Chat"""
-        return await self.ai_generator._call_provider_chat(
-            provider, system_prompt, user_prompt
-        )
+        """统一调用 AI Chat，带阶段级重试保护"""
+        last_exc: Exception | None = None
+        for attempt in range(1, _PHASE_MAX_RETRIES + 1):
+            try:
+                return await self.ai_generator._call_provider_chat(
+                    provider, system_prompt, user_prompt
+                )
+            except Exception as e:
+                last_exc = e
+                if attempt < _PHASE_MAX_RETRIES:
+                    delay = _PHASE_BASE_DELAY * attempt
+                    logger.warning(
+                        f"Story Agent 阶段调用第{attempt}次失败 "
+                        f"({type(e).__name__}: {str(e)[:100]})，"
+                        f"{delay}s 后重试..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+        raise last_exc  # type: ignore[misc]
 
     def _parse_json_response(self, text: str) -> dict:
         """解析 AI 返回的 JSON（strict=False 允许控制字符）"""
@@ -93,7 +114,7 @@ class StoryAgent:
         self,
         reference_text: str,
         reference_articles: list[dict],
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         阶段 1：分析参考素材，提取叙事核心元素
@@ -165,7 +186,7 @@ class StoryAgent:
         chapter_count: int,
         total_word_count: int,
         story_type: str,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         阶段 2：设计故事弧线、角色卡片、章节大纲
@@ -274,7 +295,7 @@ class StoryAgent:
         plan: dict,
         material: dict,
         story_type: str,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> list[dict]:
         """
         阶段 3：逐章生成故事内容
@@ -479,7 +500,7 @@ class StoryAgent:
         self,
         chapters: list[dict],
         plan: dict,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         阶段 4：组装章节，添加过渡，审查连贯性
@@ -657,7 +678,7 @@ class StoryAgent:
         self,
         assembled: dict,
         story_type: str,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         阶段 5：去 AI 味润色
@@ -757,7 +778,7 @@ class StoryAgent:
         chapter_count: int = 5,
         total_word_count: int = 15000,
         story_type: str = "corruption",
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         运行完整的 5 阶段故事生成流水线

@@ -4,6 +4,7 @@ OpenAI 兼容 API 通用提供商适配器
 包括：OpenAI、DeepSeek、通义千问、智谱GLM、月之暗面Kimi、豆包 等
 """
 
+import asyncio
 import json
 import logging
 from typing import AsyncIterator
@@ -13,6 +14,11 @@ import httpx
 from app.core.ai_providers.base import BaseAIProvider, GeneratedArticle
 
 logger = logging.getLogger(__name__)
+
+# 可重试的 HTTP 状态码（服务端临时故障）
+_RETRYABLE_STATUS_CODES = {500, 502, 503, 504, 429}
+_MAX_RETRIES = 3
+_BASE_DELAY = 2  # 秒，指数退避基数
 
 
 class OpenAICompatibleProvider(BaseAIProvider):
@@ -58,27 +64,52 @@ class OpenAICompatibleProvider(BaseAIProvider):
         self, system_prompt: str, user_prompt: str
     ) -> str:
         """
-        通用聊天接口（OpenAI 兼容格式）
+        通用聊天接口（OpenAI 兼容格式），内置指数退避重试
         """
         url = f"{self.base_url}/chat/completions"
         headers = self._build_headers()
         payload = self._build_chat_payload(system_prompt, user_prompt)
 
-        try:
-            async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-            return data["choices"][0]["message"]["content"]
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"[{self.provider_name}] API 请求失败 "
-                f"(HTTP {e.response.status_code}): {e.response.text[:500]}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"[{self.provider_name}] 调用异常: {e}")
-            raise
+        last_exc: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
+                    response = await client.post(url, json=payload, headers=headers)
+                    response.raise_for_status()
+                    data = response.json()
+                return data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                last_exc = e
+                status = e.response.status_code
+                if status in _RETRYABLE_STATUS_CODES and attempt < _MAX_RETRIES:
+                    delay = _BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"[{self.provider_name}] 第{attempt}次请求失败 "
+                        f"(HTTP {status})，{delay}s 后重试..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error(
+                    f"[{self.provider_name}] API 请求失败 "
+                    f"(HTTP {status}): {e.response.text[:500]}"
+                )
+                raise
+            except (httpx.ConnectError, httpx.ReadTimeout) as e:
+                last_exc = e
+                if attempt < _MAX_RETRIES:
+                    delay = _BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"[{self.provider_name}] 第{attempt}次连接/超时异常 "
+                        f"({type(e).__name__})，{delay}s 后重试..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error(f"[{self.provider_name}] 调用异常: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"[{self.provider_name}] 调用异常: {e}")
+                raise
+        raise last_exc  # type: ignore[misc]
 
     async def generate_article(
         self,
@@ -107,32 +138,58 @@ class OpenAICompatibleProvider(BaseAIProvider):
             system_prompt, user_prompt, stream=True
         )
 
-        try:
-            async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
-                async with client.stream(
-                    "POST", url, json=payload, headers=headers
-                ) as response:
-                    response.raise_for_status()
-                    async for line in response.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
-                        data_str = line[6:]
-                        if data_str.strip() == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(data_str)
-                            delta = data["choices"][0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                yield content
-                        except (json.JSONDecodeError, KeyError, IndexError):
-                            continue
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"[{self.provider_name}] 流式请求失败 "
-                f"(HTTP {e.response.status_code}): {e.response.text[:500]}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"[{self.provider_name}] 流式调用异常: {e}")
-            raise
+        last_exc: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
+                    async with client.stream(
+                        "POST", url, json=payload, headers=headers
+                    ) as response:
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            if not line.startswith("data: "):
+                                continue
+                            data_str = line[6:]
+                            if data_str.strip() == "[DONE]":
+                                break
+                            try:
+                                data = json.loads(data_str)
+                                delta = data["choices"][0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    yield content
+                            except (json.JSONDecodeError, KeyError, IndexError):
+                                continue
+                return  # 流式成功完成，退出重试循环
+            except httpx.HTTPStatusError as e:
+                last_exc = e
+                status = e.response.status_code
+                if status in _RETRYABLE_STATUS_CODES and attempt < _MAX_RETRIES:
+                    delay = _BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"[{self.provider_name}] 流式第{attempt}次请求失败 "
+                        f"(HTTP {status})，{delay}s 后重试..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error(
+                    f"[{self.provider_name}] 流式请求失败 "
+                    f"(HTTP {status}): {e.response.text[:500]}"
+                )
+                raise
+            except (httpx.ConnectError, httpx.ReadTimeout) as e:
+                last_exc = e
+                if attempt < _MAX_RETRIES:
+                    delay = _BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"[{self.provider_name}] 流式第{attempt}次连接/超时异常 "
+                        f"({type(e).__name__})，{delay}s 后重试..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error(f"[{self.provider_name}] 流式调用异常: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"[{self.provider_name}] 流式调用异常: {e}")
+                raise
+        raise last_exc  # type: ignore[misc]

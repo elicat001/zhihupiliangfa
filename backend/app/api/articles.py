@@ -49,7 +49,7 @@ async def generate_article(
     - **topic**: 文章主题
     - **style**: 写作风格（professional / casual / storytelling / tutorial）
     - **word_count**: 目标字数（300-10000）
-    - **ai_provider**: AI 提供商（openai / deepseek / claude）
+    - **ai_provider**: AI 提供商（gemini / openai / claude）
     """
     try:
         # 调用 AI 生成（根据 enable_images 决定是否配图）

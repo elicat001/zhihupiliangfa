@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MODEL: str = "gpt-5.2"
 
     # DeepSeek
     DEEPSEEK_API_KEY: Optional[str] = None
@@ -45,32 +45,32 @@ class Settings(BaseSettings):
     # Claude / Anthropic
     CLAUDE_API_KEY: Optional[str] = None
     CLAUDE_BASE_URL: str = "https://api.anthropic.com"
-    CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
+    CLAUDE_MODEL: str = "claude-opus-4-6"
 
     # 通义千问 (Qwen)
     QWEN_API_KEY: Optional[str] = None
     QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    QWEN_MODEL: str = "qwen-plus"
+    QWEN_MODEL: str = "qwen3-max"
 
     # 智谱 GLM
     ZHIPU_API_KEY: Optional[str] = None
     ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
-    ZHIPU_MODEL: str = "glm-4-flash"
+    ZHIPU_MODEL: str = "glm-5"
 
     # 月之暗面 Kimi (Moonshot)
     MOONSHOT_API_KEY: Optional[str] = None
     MOONSHOT_BASE_URL: str = "https://api.moonshot.cn/v1"
-    MOONSHOT_MODEL: str = "moonshot-v1-8k"
+    MOONSHOT_MODEL: str = "kimi-k2.5"
 
     # 豆包 (Doubao / ByteDance)
     DOUBAO_API_KEY: Optional[str] = None
     DOUBAO_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
-    DOUBAO_MODEL: str = "doubao-pro-32k"
+    DOUBAO_MODEL: str = "doubao-seed-1-8-251215"
 
     # Google Gemini
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
 
     # ========== 图片服务配置 ==========
     # Unsplash API (https://unsplash.com/developers)

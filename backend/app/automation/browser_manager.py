@@ -90,6 +90,8 @@ class BrowserManager:
         """
         检查浏览器上下文是否仍然存活
 
+        通过实际创建并关闭一个页面来验证，仅访问属性不够可靠。
+
         Args:
             context: 浏览器上下文
 
@@ -97,11 +99,36 @@ class BrowserManager:
             bool: 上下文是否存活
         """
         try:
-            # 尝试访问 pages 属性来检测上下文是否存活
-            _ = context.pages
+            page = await context.new_page()
+            await page.close()
             return True
         except Exception:
             return False
+
+    async def _force_reset(self):
+        """
+        强制重置整个浏览器管理器状态
+        当 Playwright 实例或浏览器进程意外死亡时调用
+        """
+        logger.warning("强制重置浏览器管理器...")
+        self._contexts.clear()
+
+        if self._browser:
+            try:
+                await self._browser.close()
+            except Exception:
+                pass
+            self._browser = None
+
+        if self._playwright:
+            try:
+                await self._playwright.stop()
+            except Exception:
+                pass
+            self._playwright = None
+
+        self._initialized = False
+        logger.info("浏览器管理器已重置")
 
     async def get_persistent_context(
         self, profile_name: str
@@ -109,6 +136,8 @@ class BrowserManager:
         """
         获取持久化浏览器上下文
         持久化上下文会保存 Cookie、localStorage 等状态
+
+        如果缓存的上下文或 Playwright 实例已失效，会自动重置并重建。
 
         Args:
             profile_name: 浏览器配置文件名称（目录名）
@@ -125,37 +154,51 @@ class BrowserManager:
                 logger.warning(f"缓存的上下文已失效，重新创建: {profile_name}")
                 self._contexts.pop(profile_name, None)
 
-        await self.initialize()
+        # 最多尝试 2 次：第 1 次正常创建，失败则重置后再试 1 次
+        for attempt in range(2):
+            try:
+                await self.initialize()
 
-        profile_dir = os.path.join(settings.BROWSER_PROFILES_DIR, profile_name)
-        os.makedirs(profile_dir, exist_ok=True)
+                profile_dir = os.path.join(
+                    settings.BROWSER_PROFILES_DIR, profile_name
+                )
+                os.makedirs(profile_dir, exist_ok=True)
 
-        logger.info(f"创建持久化上下文: {profile_name}")
+                logger.info(f"创建持久化上下文: {profile_name}")
 
-        # 持久化上下文自带浏览器实例，不依赖 self._browser
-        context = await self._playwright.chromium.launch_persistent_context(
-            user_data_dir=profile_dir,
-            headless=settings.BROWSER_HEADLESS,
-            slow_mo=settings.BROWSER_SLOW_MO,
-            viewport={"width": 1280, "height": 720},
-            user_agent=get_random_user_agent(),
-            locale="zh-CN",
-            timezone_id="Asia/Shanghai",
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--disable-infobars",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--lang=zh-CN,zh",
-            ],
-        )
+                context = await self._playwright.chromium.launch_persistent_context(
+                    user_data_dir=profile_dir,
+                    headless=settings.BROWSER_HEADLESS,
+                    slow_mo=settings.BROWSER_SLOW_MO,
+                    viewport={"width": 1280, "height": 720},
+                    user_agent=get_random_user_agent(),
+                    locale="zh-CN",
+                    timezone_id="Asia/Shanghai",
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-infobars",
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--lang=zh-CN,zh",
+                    ],
+                )
 
-        # 注入反检测脚本到每个新页面
-        await context.add_init_script(get_stealth_script())
+                # 注入反检测脚本到每个新页面
+                await context.add_init_script(get_stealth_script())
 
-        self._contexts[profile_name] = context
-        return context
+                self._contexts[profile_name] = context
+                return context
+
+            except Exception as e:
+                if attempt == 0:
+                    logger.warning(
+                        f"创建上下文失败 ({type(e).__name__}: {e})，"
+                        f"正在重置浏览器管理器后重试..."
+                    )
+                    await self._force_reset()
+                else:
+                    raise
 
     async def create_temp_context(self) -> BrowserContext:
         """

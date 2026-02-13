@@ -43,7 +43,13 @@ class ZhihuAuth:
         page = None
         try:
             context = await browser_manager.get_persistent_context(profile_name)
-            page = await browser_manager.new_page(context)
+            try:
+                page = await browser_manager.new_page(context)
+            except Exception:
+                logger.warning(f"上下文已失效，重新创建: {profile_name}")
+                await browser_manager.close_context(profile_name)
+                context = await browser_manager.get_persistent_context(profile_name)
+                page = await browser_manager.new_page(context)
 
             # 访问知乎首页
             await page.goto(self.ZHIHU_HOME_URL, wait_until="domcontentloaded")
@@ -176,7 +182,14 @@ class ZhihuAuth:
         page = None
         try:
             context = await browser_manager.get_persistent_context(profile_name)
-            page = await browser_manager.new_page(context)
+            try:
+                page = await browser_manager.new_page(context)
+            except Exception:
+                # 上下文已失效，清除缓存后重建
+                logger.warning(f"上下文已失效，重新创建: {profile_name}")
+                await browser_manager.close_context(profile_name)
+                context = await browser_manager.get_persistent_context(profile_name)
+                page = await browser_manager.new_page(context)
 
             # 访问知乎登录页
             await page.goto(self.ZHIHU_LOGIN_URL, wait_until="domcontentloaded")

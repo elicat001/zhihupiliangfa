@@ -62,7 +62,7 @@ class ArticleAgent:
     async def analyze_articles(
         self,
         articles: list[dict],
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         第一步：分析参考文章
@@ -113,7 +113,7 @@ class ArticleAgent:
         self,
         analysis: dict,
         count: int = 5,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         第二步：规划文章大纲
@@ -185,7 +185,7 @@ class ArticleAgent:
         reference_articles: list[dict],
         style: Optional[str] = None,
         word_count: int = 1500,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> list[dict]:
         """
         第三步：批量生成文章
@@ -317,7 +317,7 @@ class ArticleAgent:
         count: int = 5,
         style: Optional[str] = None,
         word_count: int = 1500,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         一键运行完整的 Agent 工作流

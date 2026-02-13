@@ -130,7 +130,7 @@ class AIGenerator:
         topic: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> GeneratedArticle:
         """
         生成文章
@@ -173,7 +173,7 @@ class AIGenerator:
         topic: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> GeneratedArticle:
         """
         生成带图片的文章：
@@ -305,7 +305,7 @@ class AIGenerator:
         topic: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> AsyncIterator[str]:
         """
         流式生成文章，逐 token 返回
@@ -373,7 +373,7 @@ class AIGenerator:
         self,
         topic: str,
         count: int = 5,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> dict:
         """
         生成系列文章大纲
@@ -414,7 +414,7 @@ class AIGenerator:
         series_context: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> GeneratedArticle:
         """
         生成系列中的单篇文章
@@ -484,7 +484,7 @@ class AIGenerator:
         content: str,
         style: str = "professional",
         instruction: str = "",
-        ai_provider: str = "deepseek",
+        ai_provider: str = "gemini",
     ) -> GeneratedArticle:
         """
         改写文章

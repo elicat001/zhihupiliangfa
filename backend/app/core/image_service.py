@@ -86,7 +86,28 @@ class ImageService:
                 response.raise_for_status()
                 data = response.json()
 
-            content = data["choices"][0]["message"]["content"]
+            # 兼容 OpenAI 格式和 Gemini 原生格式
+            if "choices" in data:
+                content = data["choices"][0]["message"]["content"]
+            else:
+                resp = data.get("response", data)
+                candidates = resp.get("candidates", [])
+                parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+                content = "".join(p.get("text", "") for p in parts if "text" in p)
+                if not content:
+                    # 尝试提取 inline_data（Gemini 原生图片格式）
+                    for p in parts:
+                        if "inline_data" in p:
+                            import base64
+                            image_bytes = base64.b64decode(p["inline_data"]["data"])
+                            date_dir = datetime.now().strftime("%Y%m%d")
+                            save_dir = os.path.join(settings.IMAGES_DIR, date_dir)
+                            os.makedirs(save_dir, exist_ok=True)
+                            filename = f"{uuid.uuid4().hex[:12]}.jpg"
+                            filepath = os.path.join(save_dir, filename)
+                            with open(filepath, "wb") as f:
+                                f.write(image_bytes)
+                            return f"/images/{date_dir}/{filename}"
 
             # 提取 base64 图片数据: ![image](data:image/jpeg;base64,...)
             import re, base64

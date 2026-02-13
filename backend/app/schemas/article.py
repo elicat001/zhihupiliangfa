@@ -18,8 +18,8 @@ class ArticleGenerateRequest(BaseModel):
     )
     word_count: int = Field(default=1500, ge=300, le=10000, description="目标字数")
     ai_provider: str = Field(
-        default="deepseek",
-        description="AI 提供商：openai / deepseek / claude",
+        default="gemini",
+        description="AI 提供商：gemini / openai / claude",
     )
     enable_images: bool = Field(
         default=False,
@@ -54,7 +54,7 @@ class SeriesOutlineRequest(BaseModel):
     """系列文章大纲生成请求"""
     topic: str = Field(..., min_length=1, max_length=200, description="系列主题")
     count: int = Field(default=5, ge=2, le=20, description="系列文章数量")
-    ai_provider: str = Field(default="deepseek", description="AI 提供商")
+    ai_provider: str = Field(default="gemini", description="AI 提供商")
 
 
 class SeriesOutlineArticle(BaseModel):
@@ -85,7 +85,7 @@ class SeriesGenerateRequest(BaseModel):
     articles: list[SeriesArticleInput] = Field(..., description="文章列表")
     style: str = Field(default="professional", description="写作风格")
     word_count: int = Field(default=1500, ge=300, le=10000, description="每篇目标字数")
-    ai_provider: str = Field(default="deepseek", description="AI 提供商")
+    ai_provider: str = Field(default="gemini", description="AI 提供商")
 
 
 # ==================== 改写请求模型 ====================
@@ -135,7 +135,7 @@ class AgentGenerateRequest(BaseModel):
     count: int = Field(default=5, ge=1, le=20, description="要生成的文章数量")
     style: Optional[str] = Field(default=None, description="写作风格（为空则由 AI 自动推荐）")
     word_count: int = Field(default=1500, ge=300, le=10000, description="每篇目标字数")
-    ai_provider: str = Field(default="deepseek", description="AI 提供商")
+    ai_provider: str = Field(default="gemini", description="AI 提供商")
 
 
 # ==================== 故事生成请求模型 ====================
@@ -162,4 +162,4 @@ class StoryGenerateRequest(BaseModel):
         default="corruption",
         description="故事类型：corruption/historical/suspense/romance/workplace",
     )
-    ai_provider: str = Field(default="deepseek", description="AI 提供商")
+    ai_provider: str = Field(default="gemini", description="AI 提供商")
