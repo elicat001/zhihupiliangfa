@@ -53,6 +53,12 @@ class ContentDirection(Base):
     last_reset_date: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default=None)
     # 反AI检测强度: 0=关闭, 1=轻度, 2=中度, 3=强力
     anti_ai_level: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    # 运行周期：开始日期（含），格式 YYYY-MM-DD，为空表示不限
+    schedule_start: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default=None)
+    # 运行周期：结束日期（含），格式 YYYY-MM-DD，为空表示不限
+    schedule_end: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default=None)
+    # 运行周期天数（前端便捷字段，与 start/end 联动）
+    schedule_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
     # 更新时间

@@ -21,7 +21,9 @@ import {
   Slider,
   Divider,
   Typography,
+  DatePicker,
 } from 'antd';
+import dayjs from 'dayjs';
 import {
   RocketOutlined,
   PlusOutlined,
@@ -33,6 +35,7 @@ import {
   ThunderboltOutlined,
   SafetyOutlined,
   SyncOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import type { ContentDirection, DirectionFormData, PilotStatus } from '../../utils/types';
 import { pilotAPI, accountAPI } from '../../services/api';
@@ -86,6 +89,18 @@ const ContentPilot: React.FC = () => {
           .map((k: string) => k.trim());
       }
 
+      // 处理运行周期日期范围
+      if (values.schedule_range && values.schedule_range.length === 2) {
+        values.schedule_start = values.schedule_range[0].format('YYYY-MM-DD');
+        values.schedule_end = values.schedule_range[1].format('YYYY-MM-DD');
+        values.schedule_days = values.schedule_range[1].diff(values.schedule_range[0], 'day') + 1;
+      } else {
+        values.schedule_start = null;
+        values.schedule_end = null;
+        values.schedule_days = null;
+      }
+      delete values.schedule_range;
+
       if (editingId) {
         await pilotAPI.updateDirection(editingId, values);
         message.success('更新成功');
@@ -109,6 +124,10 @@ const ContentPilot: React.FC = () => {
     form.setFieldsValue({
       ...record,
       keywords: (record.keywords || []).join('、'),
+      schedule_range:
+        record.schedule_start && record.schedule_end
+          ? [dayjs(record.schedule_start), dayjs(record.schedule_end)]
+          : undefined,
     });
     setModalVisible(true);
   };
@@ -249,6 +268,23 @@ const ContentPilot: React.FC = () => {
       key: 'auto_publish',
       width: 80,
       render: (v: boolean) => (v ? <Tag color="cyan">开启</Tag> : <Tag>关闭</Tag>),
+    },
+    {
+      title: '运行周期',
+      key: 'schedule',
+      width: 140,
+      render: (_: unknown, record: ContentDirection) => {
+        if (!record.schedule_start && !record.schedule_end) {
+          return <Text style={{ color: '#a0a0a0' }}>长期</Text>;
+        }
+        return (
+          <Tooltip title={`${record.schedule_start || '?'} ~ ${record.schedule_end || '?'}${record.schedule_days ? ` (${record.schedule_days}天)` : ''}`}>
+            <Tag icon={<CalendarOutlined />} color="purple">
+              {record.schedule_days ? `${record.schedule_days}天` : `${record.schedule_start} ~ ${record.schedule_end}`}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '操作',
@@ -523,6 +559,31 @@ const ContentPilot: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          <Divider style={{ margin: '12px 0', borderColor: '#2a2a3e' }} />
+
+          <Form.Item
+            name="schedule_range"
+            label={
+              <Space>
+                <CalendarOutlined />
+                运行周期
+              </Space>
+            }
+            tooltip="设置自动生成的运行时间范围，留空表示长期运行。超过结束日期后方向将自动停用。"
+          >
+            <DatePicker.RangePicker
+              style={{ width: '100%' }}
+              placeholder={['开始日期', '结束日期']}
+              presets={[
+                { label: '连续7天', value: [dayjs(), dayjs().add(6, 'day')] },
+                { label: '连续14天', value: [dayjs(), dayjs().add(13, 'day')] },
+                { label: '连续30天', value: [dayjs(), dayjs().add(29, 'day')] },
+                { label: '连续60天', value: [dayjs(), dayjs().add(59, 'day')] },
+                { label: '连续90天', value: [dayjs(), dayjs().add(89, 'day')] },
+              ]}
+            />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

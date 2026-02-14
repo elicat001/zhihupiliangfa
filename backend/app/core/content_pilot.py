@@ -316,8 +316,30 @@ class ContentPilot:
             if not direction.is_active:
                 return {"error": "方向未启用"}
 
-            # 检查是否需要重置今日计数
+            # 检查运行周期
             today_str = datetime.now().strftime("%Y-%m-%d")
+            if direction.schedule_start and today_str < direction.schedule_start:
+                return {
+                    "direction": direction.name,
+                    "message": f"未到开始日期 {direction.schedule_start}",
+                    "generated": 0,
+                }
+            if direction.schedule_end and today_str > direction.schedule_end:
+                # 超过结束日期，自动停用
+                direction.is_active = False
+                direction.updated_at = _utcnow()
+                await session.commit()
+                logger.info(
+                    f"ContentPilot: 方向 '{direction.name}' 已超过结束日期 "
+                    f"{direction.schedule_end}，自动停用"
+                )
+                return {
+                    "direction": direction.name,
+                    "message": f"已超过结束日期 {direction.schedule_end}，已自动停用",
+                    "generated": 0,
+                }
+
+            # 检查是否需要重置今日计数
             if direction.last_reset_date != today_str:
                 direction.today_generated = 0
                 direction.last_reset_date = today_str

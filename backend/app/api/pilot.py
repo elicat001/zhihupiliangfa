@@ -36,6 +36,9 @@ class DirectionCreateRequest(BaseModel):
     publish_account_id: Optional[int] = None
     publish_interval: int = 30
     anti_ai_level: int = 3
+    schedule_start: Optional[str] = None
+    schedule_end: Optional[str] = None
+    schedule_days: Optional[int] = None
 
 
 class DirectionUpdateRequest(BaseModel):
@@ -53,6 +56,9 @@ class DirectionUpdateRequest(BaseModel):
     publish_account_id: Optional[int] = None
     publish_interval: Optional[int] = None
     anti_ai_level: Optional[int] = None
+    schedule_start: Optional[str] = None
+    schedule_end: Optional[str] = None
+    schedule_days: Optional[int] = None
 
 
 class DirectionResponse(BaseModel):
@@ -72,6 +78,9 @@ class DirectionResponse(BaseModel):
     publish_interval: int
     today_generated: int
     anti_ai_level: int
+    schedule_start: Optional[str]
+    schedule_end: Optional[str]
+    schedule_days: Optional[int]
     created_at: Optional[str]
     updated_at: Optional[str]
 
@@ -122,6 +131,9 @@ async def list_directions():
                 publish_interval=d.publish_interval,
                 today_generated=d.today_generated,
                 anti_ai_level=d.anti_ai_level,
+                schedule_start=d.schedule_start,
+                schedule_end=d.schedule_end,
+                schedule_days=d.schedule_days,
                 created_at=str(d.created_at) if d.created_at else None,
                 updated_at=str(d.updated_at) if d.updated_at else None,
                 total_generated=total,
@@ -149,6 +161,9 @@ async def create_direction(request: DirectionCreateRequest):
             publish_account_id=request.publish_account_id,
             publish_interval=request.publish_interval,
             anti_ai_level=request.anti_ai_level,
+            schedule_start=request.schedule_start,
+            schedule_end=request.schedule_end,
+            schedule_days=request.schedule_days,
         )
         session.add(direction)
         await session.commit()
@@ -166,7 +181,7 @@ async def update_direction(direction_id: int, request: DirectionUpdateRequest):
         if not direction:
             raise HTTPException(status_code=404, detail="内容方向不存在")
 
-        update_data = request.model_dump(exclude_none=True)
+        update_data = request.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(direction, key, value)
         direction.updated_at = datetime.now(timezone.utc)

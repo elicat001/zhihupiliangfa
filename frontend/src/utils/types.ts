@@ -409,6 +409,9 @@ export interface ContentDirection {
   publish_interval: number;
   today_generated: number;
   anti_ai_level: number;
+  schedule_start: string | null;
+  schedule_end: string | null;
+  schedule_days: number | null;
   created_at: string | null;
   updated_at: string | null;
   total_generated: number;
@@ -430,6 +433,9 @@ export interface DirectionFormData {
   publish_account_id?: number | null;
   publish_interval?: number;
   anti_ai_level?: number;
+  schedule_start?: string | null;
+  schedule_end?: string | null;
+  schedule_days?: number | null;
 }
 
 /** 自动驾驶状态 */

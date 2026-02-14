@@ -60,6 +60,9 @@ async def init_db():
     async with engine.begin() as conn:
         for stmt in [
             "ALTER TABLE articles ADD COLUMN images JSON DEFAULT NULL",
+            "ALTER TABLE content_directions ADD COLUMN schedule_start VARCHAR(10) DEFAULT NULL",
+            "ALTER TABLE content_directions ADD COLUMN schedule_end VARCHAR(10) DEFAULT NULL",
+            "ALTER TABLE content_directions ADD COLUMN schedule_days INTEGER DEFAULT NULL",
         ]:
             try:
                 await conn.execute(text(stmt))
