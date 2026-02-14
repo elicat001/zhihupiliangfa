@@ -25,6 +25,10 @@ import type {
   ArticleRewriteParams,
   AgentGenerateParams,
   StoryGenerateParams,
+  ContentDirection,
+  DirectionFormData,
+  PilotStatus,
+  GeneratedTopicItem,
 } from '../utils/types';
 
 // ============================================================
@@ -37,7 +41,7 @@ import type {
  * - 生产环境: 通过 VITE_API_BASE_URL 环境变量指定后端地址
  *   例如 Vercel 部署时设置 VITE_API_BASE_URL=https://your-backend.com/api
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -334,6 +338,52 @@ export const notificationAPI = {
   /** 标记所有通知为已读 */
   markAllRead: (): Promise<AxiosResponse<unknown>> =>
     api.put('/notifications/read-all'),
+};
+
+// ============================================================
+// ContentPilot 自动驾驶 API
+// ============================================================
+
+export const pilotAPI = {
+  /** 获取自动驾驶状态 */
+  getStatus: (): Promise<AxiosResponse<PilotStatus>> =>
+    api.get('/pilot/status'),
+
+  /** 获取所有内容方向 */
+  listDirections: (): Promise<AxiosResponse<{ total: number; items: ContentDirection[] }>> =>
+    api.get('/pilot/directions'),
+
+  /** 创建内容方向 */
+  createDirection: (data: DirectionFormData): Promise<AxiosResponse<{ message: string; id: number }>> =>
+    api.post('/pilot/directions', data),
+
+  /** 更新内容方向 */
+  updateDirection: (id: number, data: Partial<DirectionFormData>): Promise<AxiosResponse<{ message: string }>> =>
+    api.put(`/pilot/directions/${id}`, data),
+
+  /** 删除内容方向 */
+  deleteDirection: (id: number): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/pilot/directions/${id}`),
+
+  /** 切换方向启用/停用 */
+  toggleDirection: (id: number): Promise<AxiosResponse<{ message: string; is_active: boolean }>> =>
+    api.post(`/pilot/directions/${id}/toggle`),
+
+  /** 手动触发单个方向 */
+  runDirection: (id: number): Promise<AxiosResponse<unknown>> =>
+    api.post(`/pilot/run/${id}`, {}, { timeout: 300000 }),
+
+  /** 手动触发所有方向 */
+  runAll: (): Promise<AxiosResponse<unknown>> =>
+    api.post('/pilot/run-all', {}, { timeout: 600000 }),
+
+  /** 获取已生成主题 */
+  listTopics: (directionId: number, page?: number, pageSize?: number): Promise<AxiosResponse<{ total: number; items: GeneratedTopicItem[] }>> =>
+    api.get(`/pilot/directions/${directionId}/topics`, { params: { page, page_size: pageSize } }),
+
+  /** 重置今日计数 */
+  resetCount: (id: number): Promise<AxiosResponse<{ message: string }>> =>
+    api.post(`/pilot/directions/${id}/reset-count`),
 };
 
 export default api;

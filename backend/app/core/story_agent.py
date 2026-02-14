@@ -23,7 +23,7 @@ from app.core.ai_providers.base import BaseAIProvider
 logger = logging.getLogger(__name__)
 
 # 阶段级重试配置（在 provider 级重试之上再加一层保护）
-_PHASE_MAX_RETRIES = 2
+_PHASE_MAX_RETRIES = 3
 _PHASE_BASE_DELAY = 5  # 秒
 
 # 故事类型对应的敏感题材处理规则
@@ -114,7 +114,7 @@ class StoryAgent:
         self,
         reference_text: str,
         reference_articles: list[dict],
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         阶段 1：分析参考素材，提取叙事核心元素
@@ -127,6 +127,7 @@ class StoryAgent:
         Returns:
             素材分析结果 dict
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         # 构建素材文本
@@ -186,7 +187,7 @@ class StoryAgent:
         chapter_count: int,
         total_word_count: int,
         story_type: str,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         阶段 2：设计故事弧线、角色卡片、章节大纲
@@ -201,6 +202,7 @@ class StoryAgent:
         Returns:
             故事规划 dict
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         sensitivity_rules = STORY_TYPE_RULES.get(story_type, STORY_TYPE_RULES["suspense"])
@@ -295,7 +297,7 @@ class StoryAgent:
         plan: dict,
         material: dict,
         story_type: str,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> list[dict]:
         """
         阶段 3：逐章生成故事内容
@@ -312,6 +314,7 @@ class StoryAgent:
         Returns:
             章节列表 [{"chapter_num", "title", "content", "word_count", "summary"}, ...]
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         narrator = plan.get("narrator", {})
@@ -500,7 +503,7 @@ class StoryAgent:
         self,
         chapters: list[dict],
         plan: dict,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         阶段 4：组装章节，添加过渡，审查连贯性
@@ -511,6 +514,7 @@ class StoryAgent:
         Returns:
             {"full_story": str, "title": str, "summary": str, "tags": list}
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         story_title = plan.get("story_title", "未命名故事")
@@ -678,7 +682,7 @@ class StoryAgent:
         self,
         assembled: dict,
         story_type: str,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         阶段 5：去 AI 味润色
@@ -688,6 +692,7 @@ class StoryAgent:
         Returns:
             润色后的 {"full_story", "title", "summary", "tags"}
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         full_story = assembled.get("full_story", "")
@@ -778,7 +783,7 @@ class StoryAgent:
         chapter_count: int = 5,
         total_word_count: int = 15000,
         story_type: str = "corruption",
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         运行完整的 5 阶段故事生成流水线

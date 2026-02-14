@@ -11,7 +11,7 @@ const defaultSettings: Settings = {
     provider: 'openai',
     api_key: '',
     base_url: 'https://api.openai.com/v1',
-    model: 'gpt-5.2',
+    model: 'gpt-5.1-2025-11-13',
     temperature: 0.7,
     max_tokens: 4096,
   },

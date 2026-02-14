@@ -10,3 +10,4 @@ from app.models.task import PublishTask, PublishRecord  # noqa: F401
 from app.models.log import SystemLog  # noqa: F401
 from app.models.template import PromptTemplate  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
+from app.models.pilot import ContentDirection, GeneratedTopic  # noqa: F401

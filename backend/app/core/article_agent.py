@@ -62,7 +62,7 @@ class ArticleAgent:
     async def analyze_articles(
         self,
         articles: list[dict],
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         第一步：分析参考文章
@@ -74,6 +74,7 @@ class ArticleAgent:
         Returns:
             分析结果 dict，包含主题、风格、关键词等
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         # 构建参考文章文本
@@ -113,7 +114,7 @@ class ArticleAgent:
         self,
         analysis: dict,
         count: int = 5,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         第二步：规划文章大纲
@@ -126,6 +127,7 @@ class ArticleAgent:
         Returns:
             规划结果 dict，包含文章大纲列表
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         system_prompt = """你是一位资深的知乎专栏策划编辑，擅长基于已有内容策划新的系列文章。
@@ -185,7 +187,7 @@ class ArticleAgent:
         reference_articles: list[dict],
         style: Optional[str] = None,
         word_count: int = 1500,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> list[dict]:
         """
         第三步：批量生成文章
@@ -201,6 +203,7 @@ class ArticleAgent:
         Returns:
             生成的文章列表
         """
+        ai_provider = self.ai_generator._resolve_provider(ai_provider)
         provider = self.ai_generator._get_provider_or_raise(ai_provider)
 
         actual_style = style or plan.get("recommended_style", "professional")
@@ -221,11 +224,21 @@ class ArticleAgent:
             system_prompt = """你是一位拥有10万+粉丝的知乎头部创作者，文章多次登上知乎热榜。
 
 ## 知乎排版规范
-- 使用 ## 二级标题分段，每段控制在 300-500 字
+- 使用 ## 二级标题分段
 - 重要观点用 **加粗** 标注
 - 适当使用 > 引用块来突出金句或数据
 - 使用有序/无序列表来归纳要点
 - 段与段之间用 --- 分割线过渡
+
+## 反AI检测写作规范（极其重要）
+- 绝对禁止使用："然而""不禁""竟然""值得一提的是""毫无疑问""与此同时""总而言之""综上所述"
+- 必须用口语化过渡："说白了""简单来说""你想啊""坦白讲"
+- 插入个人化表达："我个人觉得""说实话""据我了解"
+- 段落长度随机变化，不要每段都一样长
+- 每篇文章至少包含2个具体案例或"个人经历"
+- 句式长短交替，偶尔用反问句或感叹句
+- 允许表达不确定："可能""大概""或许"
+- 偶尔跑题再拉回："扯远了，说回正题"
 
 ## 输出格式要求
 你必须严格按照以下 JSON 格式返回，不要返回任何其他内容：
@@ -317,7 +330,7 @@ class ArticleAgent:
         count: int = 5,
         style: Optional[str] = None,
         word_count: int = 1500,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         一键运行完整的 Agent 工作流

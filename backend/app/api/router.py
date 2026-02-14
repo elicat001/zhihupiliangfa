@@ -14,6 +14,7 @@ from app.api.settings import router as settings_router
 from app.api.templates import router as templates_router
 from app.api.events import router as events_router
 from app.api.notifications import router as notifications_router
+from app.api.pilot import router as pilot_router
 
 # 主路由器，统一 /api 前缀
 api_router = APIRouter(prefix="/api")
@@ -28,3 +29,4 @@ api_router.include_router(settings_router)
 api_router.include_router(templates_router)
 api_router.include_router(events_router)
 api_router.include_router(notifications_router)
+api_router.include_router(pilot_router)

@@ -12,6 +12,7 @@ import {
   MenuUnfoldOutlined,
   ThunderboltOutlined,
   KeyOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -24,6 +25,7 @@ const { Title } = Typography;
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/generate', icon: <EditOutlined />, label: 'AI 生成文章' },
+  { key: '/pilot', icon: <RocketOutlined />, label: '自动驾驶' },
   { key: '/articles', icon: <FileTextOutlined />, label: '文章管理' },
   { key: '/accounts', icon: <UserOutlined />, label: '账号管理' },
   { key: '/tasks', icon: <ScheduleOutlined />, label: '任务调度' },
@@ -39,11 +41,12 @@ const shortcutHintContent = (
   <div style={{ fontSize: 12, lineHeight: '20px' }}>
     <div><b>Alt+1</b> 仪表盘</div>
     <div><b>Alt+2</b> AI 生成文章</div>
-    <div><b>Alt+3</b> 文章管理</div>
-    <div><b>Alt+4</b> 任务调度</div>
-    <div><b>Alt+5</b> 发布历史</div>
-    <div><b>Alt+6</b> 账号管理</div>
-    <div><b>Alt+7</b> 系统设置</div>
+    <div><b>Alt+3</b> 自动驾驶</div>
+    <div><b>Alt+4</b> 文章管理</div>
+    <div><b>Alt+5</b> 任务调度</div>
+    <div><b>Alt+6</b> 发布历史</div>
+    <div><b>Alt+7</b> 账号管理</div>
+    <div><b>Alt+8</b> 系统设置</div>
   </div>
 );
 

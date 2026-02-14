@@ -35,6 +35,11 @@ from app.core.article_agent import article_agent
 from app.core.story_agent import story_agent
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_provider(ai_provider: str | None) -> str:
+    """将 None/空 的 ai_provider 解析为实际使用的提供商名称"""
+    return ai_generator._resolve_provider(ai_provider)
 router = APIRouter(prefix="/articles", tags=["文章管理"])
 
 
@@ -52,6 +57,9 @@ async def generate_article(
     - **ai_provider**: AI 提供商（gemini / openai / claude）
     """
     try:
+        # 解析实际使用的 AI 提供商
+        request.ai_provider = _resolve_provider(request.ai_provider)
+
         # 调用 AI 生成（根据 enable_images 决定是否配图）
         if request.enable_images:
             generated = await ai_generator.generate_with_images(
@@ -122,6 +130,9 @@ async def generate_article_stream(
     - done: 生成完毕，附带完整文章数据（已保存到数据库）
     - error: 生成过程中出现错误
     """
+
+    # 解析实际使用的 AI 提供商
+    request.ai_provider = _resolve_provider(request.ai_provider)
 
     # Pre-validate provider availability before entering the stream
     # so we can return a proper HTTP error instead of an SSE error
@@ -299,6 +310,7 @@ async def generate_series_outline(
     - **ai_provider**: AI 提供商
     """
     try:
+        request.ai_provider = _resolve_provider(request.ai_provider)
         outline = await ai_generator.generate_series_outline(
             topic=request.topic,
             count=request.count,
@@ -331,6 +343,7 @@ async def generate_series_articles(
     - **ai_provider**: AI 提供商
     """
     try:
+        request.ai_provider = _resolve_provider(request.ai_provider)
         series_id = str(uuid.uuid4())
         series_context = f"系列「{request.series_title}」，共 {len(request.articles)} 篇"
         saved_articles = []
@@ -492,6 +505,8 @@ async def agent_generate_articles(
     - **word_count**: 每篇目标字数
     - **ai_provider**: AI 提供商
     """
+    request.ai_provider = _resolve_provider(request.ai_provider)
+
     # 获取参考文章
     reference_articles = []
     for article_id in request.article_ids:
@@ -588,6 +603,8 @@ async def story_generate(
     4. 组装润色 — 合并章节、添加过渡和伏笔回收
     5. 去AI味 — 替换模板表达、添加自然语感
     """
+    request.ai_provider = _resolve_provider(request.ai_provider)
+
     # 获取可选的参考文章
     reference_articles = []
     if request.reference_article_ids:

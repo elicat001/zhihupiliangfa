@@ -387,6 +387,67 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
+// ============================================================
+// ContentPilot 自动驾驶类型
+// ============================================================
+
+/** 内容方向 */
+export interface ContentDirection {
+  id: number;
+  name: string;
+  description: string;
+  keywords: string[];
+  seed_text: string;
+  ai_provider: string | null;
+  generation_mode: 'single' | 'agent' | 'story';
+  style: string;
+  word_count: number;
+  daily_count: number;
+  is_active: boolean;
+  auto_publish: boolean;
+  publish_account_id: number | null;
+  publish_interval: number;
+  today_generated: number;
+  anti_ai_level: number;
+  created_at: string | null;
+  updated_at: string | null;
+  total_generated: number;
+}
+
+/** 创建/更新方向请求 */
+export interface DirectionFormData {
+  name: string;
+  description?: string;
+  keywords?: string[];
+  seed_text?: string;
+  ai_provider?: string | null;
+  generation_mode?: string;
+  style?: string;
+  word_count?: number;
+  daily_count?: number;
+  is_active?: boolean;
+  auto_publish?: boolean;
+  publish_account_id?: number | null;
+  publish_interval?: number;
+  anti_ai_level?: number;
+}
+
+/** 自动驾驶状态 */
+export interface PilotStatus {
+  is_running: boolean;
+  active_directions: number;
+  total_directions: number;
+  today_total_generated: number;
+}
+
+/** 已生成主题 */
+export interface GeneratedTopicItem {
+  id: number;
+  topic: string;
+  article_id: number | null;
+  created_at: string | null;
+}
+
 /** 文章列表查询参数 */
 export interface ArticleListParams extends PaginationParams {
   status?: ArticleStatus;

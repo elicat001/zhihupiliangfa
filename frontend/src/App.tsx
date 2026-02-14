@@ -11,6 +11,7 @@ const AccountManage = lazy(() => import('./pages/AccountManage'));
 const TaskSchedule = lazy(() => import('./pages/TaskSchedule'));
 const PublishHistory = lazy(() => import('./pages/PublishHistory'));
 const Settings = lazy(() => import('./pages/Settings'));
+const ContentPilot = lazy(() => import('./pages/ContentPilot'));
 
 /** 加载中占位组件 */
 const PageLoading: React.FC = () => (
@@ -37,6 +38,7 @@ const App: React.FC = () => {
           <Route path="/accounts" element={<AccountManage />} />
           <Route path="/tasks" element={<TaskSchedule />} />
           <Route path="/history" element={<PublishHistory />} />
+          <Route path="/pilot" element={<ContentPilot />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={
             <div style={{ textAlign: 'center', paddingTop: 100 }}>

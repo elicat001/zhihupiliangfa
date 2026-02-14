@@ -39,7 +39,7 @@ import {
 } from '@ant-design/icons';
 import { useArticleStore } from '../../stores/articleStore';
 import { useAccountStore } from '../../stores/accountStore';
-import { articleAPI, publishAPI, templateAPI } from '../../services/api';
+import { articleAPI, publishAPI, templateAPI, API_BASE_URL } from '../../services/api';
 import type {
   GenerateParams,
   GeneratedArticle,
@@ -56,10 +56,11 @@ const { TextArea } = Input;
 
 /** AI 提供商选项（需与后端支持的提供商一致） */
 const providerOptions = [
-  { label: 'DeepSeek', value: 'deepseek' },
-  { label: 'OpenAI (GPT-4)', value: 'openai' },
-  { label: 'Claude', value: 'claude' },
   { label: 'Google Gemini', value: 'gemini' },
+  { label: 'GPT-5 Codex', value: 'codex' },
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'OpenAI (GPT-5)', value: 'openai' },
+  { label: 'Claude', value: 'claude' },
   { label: '通义千问 (Qwen)', value: 'qwen' },
   { label: '智谱 GLM', value: 'zhipu' },
   { label: '月之暗面 Kimi', value: 'moonshot' },
@@ -301,7 +302,7 @@ const ArticleGenerate: React.FC = () => {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const response = await fetch('/api/articles/generate-stream', {
+      const response = await fetch(`${API_BASE_URL}/articles/generate-stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -585,7 +586,7 @@ const ArticleGenerate: React.FC = () => {
             initialValues={{
               style: 'professional',
               wordCount: 1000,
-              provider: 'deepseek',
+              provider: 'gemini',
               enableImages: false,
             }}
           >
@@ -926,7 +927,7 @@ const ArticleGenerate: React.FC = () => {
             layout="vertical"
             initialValues={{
               seriesCount: 5,
-              seriesProvider: 'deepseek',
+              seriesProvider: 'gemini',
               seriesStyle: 'professional',
               seriesWordCount: 1500,
             }}
@@ -1214,7 +1215,7 @@ const ArticleGenerate: React.FC = () => {
             layout="vertical"
             initialValues={{
               agentCount: 5,
-              agentProvider: 'deepseek',
+              agentProvider: 'gemini',
               agentWordCount: 1500,
             }}
           >

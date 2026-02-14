@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # 可重试的 HTTP 状态码（服务端临时故障）
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504, 429}
-_MAX_RETRIES = 3
+_MAX_RETRIES = 5
 _BASE_DELAY = 2  # 秒，指数退避基数
 
 
@@ -164,6 +164,12 @@ class OpenAICompatibleProvider(BaseAIProvider):
             except httpx.HTTPStatusError as e:
                 last_exc = e
                 status = e.response.status_code
+                # 流式响应需要先 read 才能访问 text
+                try:
+                    await e.response.aread()
+                    error_text = e.response.text[:500]
+                except Exception:
+                    error_text = "(无法读取响应体)"
                 if status in _RETRYABLE_STATUS_CODES and attempt < _MAX_RETRIES:
                     delay = _BASE_DELAY * (2 ** (attempt - 1))
                     logger.warning(
@@ -174,7 +180,7 @@ class OpenAICompatibleProvider(BaseAIProvider):
                     continue
                 logger.error(
                     f"[{self.provider_name}] 流式请求失败 "
-                    f"(HTTP {status}): {e.response.text[:500]}"
+                    f"(HTTP {status}): {error_text}"
                 )
                 raise
             except (httpx.ConnectError, httpx.ReadTimeout) as e:

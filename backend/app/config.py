@@ -32,10 +32,13 @@ class Settings(BaseSettings):
         return f"sqlite+aiosqlite:///{self.DATABASE_PATH}"
 
     # ========== AI 提供商配置 ==========
+    # 默认 AI 提供商（auto=自动选择第一个已配置的提供商）
+    DEFAULT_AI_PROVIDER: str = "auto"
+
     # OpenAI
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_MODEL: str = "gpt-5.2"
+    OPENAI_MODEL: str = "gpt-5.1-2025-11-13"
 
     # DeepSeek
     DEEPSEEK_API_KEY: Optional[str] = None
@@ -45,7 +48,7 @@ class Settings(BaseSettings):
     # Claude / Anthropic
     CLAUDE_API_KEY: Optional[str] = None
     CLAUDE_BASE_URL: str = "https://api.anthropic.com"
-    CLAUDE_MODEL: str = "claude-opus-4-6"
+    CLAUDE_MODEL: str = "claude-sonnet-4-5-20250929"
 
     # 通义千问 (Qwen)
     QWEN_API_KEY: Optional[str] = None
@@ -71,6 +74,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     GEMINI_MODEL: str = "gemini-3-flash-preview"
+
+    # OpenAI Codex (GPT-5, 使用 Responses API)
+    CODEX_API_KEY: Optional[str] = None
+    CODEX_BASE_URL: str = "http://205.198.88.238:3000/openai"
+    CODEX_MODEL: str = "gpt-5-codex"
 
     # ========== 图片服务配置 ==========
     # Unsplash API (https://unsplash.com/developers)

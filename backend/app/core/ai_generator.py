@@ -19,6 +19,7 @@ from app.core.ai_providers.zhipu_provider import ZhipuProvider
 from app.core.ai_providers.moonshot_provider import MoonshotProvider
 from app.core.ai_providers.doubao_provider import DoubaoProvider
 from app.core.ai_providers.gemini_provider import GeminiProvider
+from app.core.ai_providers.codex_provider import CodexProvider
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,10 @@ class AIGenerator:
             "gemini", GeminiProvider,
             settings.GEMINI_API_KEY, settings.GEMINI_BASE_URL, settings.GEMINI_MODEL,
         )
+        self._try_init_provider(
+            "codex", CodexProvider,
+            settings.CODEX_API_KEY, settings.CODEX_BASE_URL, settings.CODEX_MODEL,
+        )
 
         if not self._providers:
             logger.warning(
@@ -97,6 +102,19 @@ class AIGenerator:
     def get_available_providers(self) -> list[str]:
         """获取可用的 AI 提供商列表"""
         return list(self._providers.keys())
+
+    def get_default_provider_name(self) -> str:
+        """根据配置智能选择默认 AI 提供商"""
+        preferred = settings.DEFAULT_AI_PROVIDER
+        if preferred and preferred != "auto" and preferred in self._providers:
+            return preferred
+        # auto: 返回第一个可用的提供商
+        available = self.get_available_providers()
+        return available[0] if available else ""
+
+    def _resolve_provider(self, ai_provider: Optional[str]) -> str:
+        """解析 AI 提供商名称，None 时使用默认值"""
+        return ai_provider if ai_provider else self.get_default_provider_name()
 
     def get_provider(self, name: str) -> Optional[BaseAIProvider]:
         """获取指定的 AI 提供商"""
@@ -130,7 +148,7 @@ class AIGenerator:
         topic: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> GeneratedArticle:
         """
         生成文章
@@ -139,7 +157,7 @@ class AIGenerator:
             topic: 文章主题
             style: 写作风格
             word_count: 目标字数
-            ai_provider: AI 提供商名称
+            ai_provider: AI 提供商名称（None=使用默认）
 
         Returns:
             GeneratedArticle: 生成的文章
@@ -148,6 +166,7 @@ class AIGenerator:
             ValueError: 当提供商不可用时
             Exception: 当 API 调用失败时
         """
+        ai_provider = self._resolve_provider(ai_provider)
         provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(
@@ -173,7 +192,7 @@ class AIGenerator:
         topic: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> GeneratedArticle:
         """
         生成带图片的文章：
@@ -305,7 +324,7 @@ class AIGenerator:
         topic: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """
         流式生成文章，逐 token 返回
@@ -314,7 +333,7 @@ class AIGenerator:
             topic: 文章主题
             style: 写作风格
             word_count: 目标字数
-            ai_provider: AI 提供商名称
+            ai_provider: AI 提供商名称（None=使用默认）
 
         Yields:
             str: 每个 token/chunk 的文本
@@ -323,6 +342,7 @@ class AIGenerator:
             ValueError: 当提供商不可用时
             Exception: 当 API 调用失败时
         """
+        ai_provider = self._resolve_provider(ai_provider)
         provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(
@@ -373,7 +393,7 @@ class AIGenerator:
         self,
         topic: str,
         count: int = 5,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> dict:
         """
         生成系列文章大纲
@@ -381,11 +401,12 @@ class AIGenerator:
         Args:
             topic: 系列主题
             count: 文章篇数
-            ai_provider: AI 提供商
+            ai_provider: AI 提供商（None=使用默认）
 
         Returns:
             dict: 包含 series_title, description, articles 的字典
         """
+        ai_provider = self._resolve_provider(ai_provider)
         provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(f"使用 {ai_provider} 生成系列大纲: topic={topic}, count={count}")
@@ -414,7 +435,7 @@ class AIGenerator:
         series_context: str,
         style: str = "professional",
         word_count: int = 1500,
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> GeneratedArticle:
         """
         生成系列中的单篇文章
@@ -426,11 +447,12 @@ class AIGenerator:
             series_context: 系列上下文描述
             style: 写作风格
             word_count: 目标字数
-            ai_provider: AI 提供商
+            ai_provider: AI 提供商（None=使用默认）
 
         Returns:
             GeneratedArticle: 生成的文章
         """
+        ai_provider = self._resolve_provider(ai_provider)
         provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(f"使用 {ai_provider} 生成系列文章: {title}")
@@ -484,7 +506,7 @@ class AIGenerator:
         content: str,
         style: str = "professional",
         instruction: str = "",
-        ai_provider: str = "gemini",
+        ai_provider: Optional[str] = None,
     ) -> GeneratedArticle:
         """
         改写文章
@@ -493,11 +515,12 @@ class AIGenerator:
             content: 原文内容
             style: 改写风格
             instruction: 额外改写指令
-            ai_provider: AI 提供商
+            ai_provider: AI 提供商（None=使用默认）
 
         Returns:
             GeneratedArticle: 改写后的文章
         """
+        ai_provider = self._resolve_provider(ai_provider)
         provider = self._get_provider_or_raise(ai_provider)
 
         logger.info(f"使用 {ai_provider} 改写文章, style={style}")

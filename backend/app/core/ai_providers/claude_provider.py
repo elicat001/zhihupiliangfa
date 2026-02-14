@@ -1,6 +1,8 @@
 """
 Claude / Anthropic 提供商适配器
-使用 Anthropic Messages API 格式
+支持 Anthropic 原生 Messages API 和 OpenAI 兼容代理两种模式：
+- base_url 含 anthropic.com → 使用 Anthropic 原生格式
+- 其他地址 → 自动切换为 OpenAI 兼容格式（适配统一代理）
 """
 
 import json
@@ -9,20 +11,34 @@ from typing import AsyncIterator
 
 import httpx
 
-from app.core.ai_providers.base import BaseAIProvider, GeneratedArticle
+from app.core.ai_providers.openai_compatible_provider import OpenAICompatibleProvider
+from app.core.ai_providers.base import GeneratedArticle
 
 logger = logging.getLogger(__name__)
 
 
-class ClaudeProvider(BaseAIProvider):
-    """Anthropic Claude API 适配器"""
+class ClaudeProvider(OpenAICompatibleProvider):
+    """Anthropic Claude API 适配器（自动检测代理模式）"""
 
     @property
     def provider_name(self) -> str:
         return "claude"
 
+    @property
+    def _use_native_api(self) -> bool:
+        """是否使用 Anthropic 原生 API 格式"""
+        return "anthropic.com" in self.base_url
+
+    # ---------- OpenAI 兼容模式 ----------
+    # 当 _use_native_api 为 False 时，直接继承 OpenAICompatibleProvider
+    # 的 _build_headers / _build_chat_payload / chat / generate_article /
+    # generate_article_stream 等方法，无需额外代码。
+
+    # ---------- Anthropic 原生模式 ----------
+
     def _build_headers(self) -> dict[str, str]:
-        """构建 Anthropic 专用请求头"""
+        if not self._use_native_api:
+            return super()._build_headers()
         return {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -36,7 +52,10 @@ class ClaudeProvider(BaseAIProvider):
         *,
         stream: bool = False,
     ) -> dict:
-        """构建 Anthropic Messages API 请求体"""
+        if not self._use_native_api:
+            return super()._build_chat_payload(
+                system_prompt, user_prompt, stream=stream
+            )
         payload = {
             "model": self.model,
             "max_tokens": 4096,
@@ -53,9 +72,10 @@ class ClaudeProvider(BaseAIProvider):
     async def chat(
         self, system_prompt: str, user_prompt: str
     ) -> str:
-        """
-        通用聊天接口（Anthropic Messages API 格式）
-        """
+        if not self._use_native_api:
+            return await super().chat(system_prompt, user_prompt)
+
+        # Anthropic 原生 Messages API
         url = f"{self.base_url}/v1/messages"
         headers = self._build_headers()
         payload = self._build_chat_payload(system_prompt, user_prompt)
@@ -65,8 +85,6 @@ class ClaudeProvider(BaseAIProvider):
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
-
-            # Anthropic 响应格式：content 是数组
             return data["content"][0]["text"]
         except httpx.HTTPStatusError as e:
             logger.error(
@@ -84,12 +102,11 @@ class ClaudeProvider(BaseAIProvider):
         style: str = "professional",
         word_count: int = 1500,
     ) -> GeneratedArticle:
-        """
-        调用 Anthropic Messages API 生成文章
-        """
+        if not self._use_native_api:
+            return await super().generate_article(topic, style, word_count)
+
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(topic, style, word_count)
-
         text = await self.chat(system_prompt, user_prompt)
         return self._parse_response(text)
 
@@ -99,13 +116,14 @@ class ClaudeProvider(BaseAIProvider):
         style: str = "professional",
         word_count: int = 1500,
     ) -> AsyncIterator[str]:
-        """
-        流式调用 Anthropic Messages API，逐 token 返回
+        if not self._use_native_api:
+            async for chunk in super().generate_article_stream(
+                topic, style, word_count
+            ):
+                yield chunk
+            return
 
-        Anthropic 流式格式：
-        event: content_block_delta
-        data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
-        """
+        # Anthropic 原生流式格式
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(topic, style, word_count)
 
@@ -140,9 +158,14 @@ class ClaudeProvider(BaseAIProvider):
                         except (json.JSONDecodeError, KeyError):
                             continue
         except httpx.HTTPStatusError as e:
+            try:
+                await e.response.aread()
+                error_text = e.response.text[:500]
+            except Exception:
+                error_text = "(无法读取响应体)"
             logger.error(
                 f"[claude] 流式请求失败 "
-                f"(HTTP {e.response.status_code}): {e.response.text[:500]}"
+                f"(HTTP {e.response.status_code}): {error_text}"
             )
             raise
         except Exception as e:

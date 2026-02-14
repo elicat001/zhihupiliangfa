@@ -69,9 +69,18 @@ class TaskScheduler:
             replace_existing=True,
         )
 
+        # ContentPilot 自动驾驶：每 30 分钟执行一轮
+        self.scheduler.add_job(
+            self._run_content_pilot,
+            IntervalTrigger(minutes=30),
+            id="content_pilot",
+            name="ContentPilot 自动生成",
+            replace_existing=True,
+        )
+
         self.scheduler.start()
         self._running = True
-        logger.info("任务调度器已启动")
+        logger.info("任务调度器已启动（含 ContentPilot 自动驾驶）")
 
     def shutdown(self):
         """关闭调度器"""
@@ -573,6 +582,26 @@ class TaskScheduler:
                     "retry_count": task.retry_count,
                     "message": "任务已重新排入队列（指数退避）",
                 })
+
+    async def _run_content_pilot(self):
+        """
+        ContentPilot 自动驾驶定时任务
+        每 30 分钟检查所有启用的方向，执行自动生成
+        只在活跃时间窗口内运行
+        """
+        now = datetime.now()
+        if not (settings.ACTIVE_TIME_START <= now.hour < settings.ACTIVE_TIME_END):
+            logger.debug("ContentPilot: 当前不在活跃时间窗口，跳过")
+            return
+
+        try:
+            from app.core.content_pilot import content_pilot
+            results = await content_pilot.run_all_directions()
+            total = sum(r.get("articles_generated", 0) for r in results if isinstance(r, dict))
+            if total > 0:
+                logger.info(f"ContentPilot 自动驾驶完成: 本轮共生成 {total} 篇文章")
+        except Exception as e:
+            logger.error(f"ContentPilot 自动驾驶异常: {e}")
 
     async def _check_rate_limit(
         self, session, account_id: int
