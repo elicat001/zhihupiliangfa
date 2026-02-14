@@ -469,3 +469,73 @@ export interface TaskListParams extends PaginationParams {
   start_date?: string;
   end_date?: string;
 }
+
+// ============================================================
+// 知乎问答相关类型
+// ============================================================
+
+/** 知乎问题 */
+export interface ZhihuQuestion {
+  id: number;
+  question_id: string;
+  title: string;
+  detail: string | null;
+  topics: string[] | null;
+  follower_count: number;
+  answer_count: number;
+  view_count: number;
+  source: string;
+  score: number;
+  status: string;
+  account_id: number | null;
+  fetched_at: string | null;
+  created_at: string;
+}
+
+/** 知乎回答 */
+export interface ZhihuAnswer {
+  id: number;
+  question_id: number;
+  zhihu_question_id: string;
+  account_id: number;
+  content: string;
+  word_count: number;
+  ai_provider: string | null;
+  style: string;
+  anti_ai_level: number;
+  status: string;
+  zhihu_answer_url: string | null;
+  screenshot_path: string | null;
+  publish_error: string | null;
+  created_at: string;
+  published_at: string | null;
+  question_title?: string;
+  account_nickname?: string;
+}
+
+/** 问题抓取请求 */
+export interface QuestionFetchParams {
+  account_id: number;
+  sources: string[];
+  max_count: number;
+}
+
+/** 回答生成请求 */
+export interface AnswerGenerateParams {
+  question_id: number;
+  account_id: number;
+  style: string;
+  word_count: number;
+  ai_provider?: string;
+  anti_ai_level: number;
+}
+
+/** 问答统计 */
+export interface QAStats {
+  total_questions: number;
+  pending_questions: number;
+  answered_questions: number;
+  total_answers: number;
+  published_answers: number;
+  failed_answers: number;
+}

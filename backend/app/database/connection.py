@@ -63,6 +63,8 @@ async def init_db():
             "ALTER TABLE content_directions ADD COLUMN schedule_start VARCHAR(10) DEFAULT NULL",
             "ALTER TABLE content_directions ADD COLUMN schedule_end VARCHAR(10) DEFAULT NULL",
             "ALTER TABLE content_directions ADD COLUMN schedule_days INTEGER DEFAULT NULL",
+            "ALTER TABLE zhihu_questions ADD COLUMN view_count INTEGER DEFAULT 0",
+            "ALTER TABLE zhihu_answers ADD COLUMN anti_ai_level INTEGER DEFAULT 3",
         ]:
             try:
                 await conn.execute(text(stmt))

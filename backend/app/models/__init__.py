@@ -11,3 +11,4 @@ from app.models.log import SystemLog  # noqa: F401
 from app.models.template import PromptTemplate  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.pilot import ContentDirection, GeneratedTopic  # noqa: F401
+from app.models.qa import ZhihuQuestion, ZhihuAnswer  # noqa: F401

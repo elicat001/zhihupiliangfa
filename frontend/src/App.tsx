@@ -12,6 +12,7 @@ const TaskSchedule = lazy(() => import('./pages/TaskSchedule'));
 const PublishHistory = lazy(() => import('./pages/PublishHistory'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ContentPilot = lazy(() => import('./pages/ContentPilot'));
+const QuestionAnswer = lazy(() => import('./pages/QuestionAnswer'));
 
 /** 加载中占位组件 */
 const PageLoading: React.FC = () => (
@@ -39,6 +40,7 @@ const App: React.FC = () => {
           <Route path="/tasks" element={<TaskSchedule />} />
           <Route path="/history" element={<PublishHistory />} />
           <Route path="/pilot" element={<ContentPilot />} />
+          <Route path="/qa" element={<QuestionAnswer />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={
             <div style={{ textAlign: 'center', paddingTop: 100 }}>

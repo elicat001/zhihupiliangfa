@@ -12,6 +12,7 @@ import {
   MenuUnfoldOutlined,
   KeyOutlined,
   RocketOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -25,6 +26,7 @@ const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/generate', icon: <EditOutlined />, label: 'AI 文章生成' },
   { key: '/pilot', icon: <RocketOutlined />, label: '自动驾驶' },
+  { key: '/qa', icon: <QuestionCircleOutlined />, label: '知乎问答' },
   { key: '/articles', icon: <FileTextOutlined />, label: '文章管理' },
   { key: '/accounts', icon: <UserOutlined />, label: '账号管理' },
   { key: '/tasks', icon: <ScheduleOutlined />, label: '任务调度' },

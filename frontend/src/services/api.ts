@@ -29,6 +29,11 @@ import type {
   DirectionFormData,
   PilotStatus,
   GeneratedTopicItem,
+  ZhihuQuestion,
+  ZhihuAnswer,
+  QuestionFetchParams,
+  AnswerGenerateParams,
+  QAStats,
 } from '../utils/types';
 
 // ============================================================
@@ -384,6 +389,56 @@ export const pilotAPI = {
   /** 重置今日计数 */
   resetCount: (id: number): Promise<AxiosResponse<{ message: string }>> =>
     api.post(`/pilot/directions/${id}/reset-count`),
+};
+
+// ============================================================
+// 知乎问答 API
+// ============================================================
+
+export const qaAPI = {
+  /** 获取问题列表 */
+  listQuestions: (params?: { page?: number; page_size?: number; status?: string; source?: string; sort_by?: string }): Promise<AxiosResponse<{ total: number; items: ZhihuQuestion[] }>> =>
+    api.get('/qa/questions', { params }),
+
+  /** 抓取问题 */
+  fetchQuestions: (data: QuestionFetchParams): Promise<AxiosResponse<{ total_fetched: number; new_questions: number; skipped_existing: number }>> =>
+    api.post('/qa/questions/fetch', data, { timeout: 120000 }),
+
+  /** 手动添加问题 */
+  addManualQuestion: (url: string, accountId?: number): Promise<AxiosResponse<{ id: number; question_id: string; message: string }>> =>
+    api.post('/qa/questions/manual', null, { params: { url, account_id: accountId } }),
+
+  /** 跳过/删除问题 */
+  skipQuestion: (id: number): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/qa/questions/${id}`),
+
+  /** 获取回答列表 */
+  listAnswers: (params?: { page?: number; page_size?: number; status?: string; question_id?: number }): Promise<AxiosResponse<{ total: number; items: ZhihuAnswer[] }>> =>
+    api.get('/qa/answers', { params }),
+
+  /** 获取回答详情 */
+  getAnswer: (id: number): Promise<AxiosResponse<ZhihuAnswer>> =>
+    api.get(`/qa/answers/${id}`),
+
+  /** AI生成回答 */
+  generateAnswer: (data: AnswerGenerateParams): Promise<AxiosResponse<{ id: number; content: string; word_count: number }>> =>
+    api.post('/qa/answers/generate', data, { timeout: 120000 }),
+
+  /** 编辑回答 */
+  updateAnswer: (id: number, data: { content?: string; style?: string }): Promise<AxiosResponse<{ message: string }>> =>
+    api.put(`/qa/answers/${id}`, data),
+
+  /** 发布回答 */
+  publishAnswer: (id: number, accountId?: number): Promise<AxiosResponse<{ success: boolean; answer_url?: string; message: string }>> =>
+    api.post(`/qa/answers/${id}/publish`, { account_id: accountId }, { timeout: 120000 }),
+
+  /** 删除回答 */
+  deleteAnswer: (id: number): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/qa/answers/${id}`),
+
+  /** 获取问答统计 */
+  getStats: (): Promise<AxiosResponse<QAStats>> =>
+    api.get('/qa/stats'),
 };
 
 export default api;
