@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Layout, Menu, Typography, Avatar, Tooltip } from 'antd';
 import {
   DashboardOutlined,
@@ -10,21 +10,20 @@ import {
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  ThunderboltOutlined,
   KeyOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import NotificationCenter from '../NotificationCenter';
+import { colors, gradients, layout } from '../../styles/theme';
 
 const { Sider, Header, Content } = Layout;
-const { Title } = Typography;
+const { Text } = Typography;
 
-/** 侧边栏菜单项配置 */
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
-  { key: '/generate', icon: <EditOutlined />, label: 'AI 生成文章' },
+  { key: '/generate', icon: <EditOutlined />, label: 'AI 文章生成' },
   { key: '/pilot', icon: <RocketOutlined />, label: '自动驾驶' },
   { key: '/articles', icon: <FileTextOutlined />, label: '文章管理' },
   { key: '/accounts', icon: <UserOutlined />, label: '账号管理' },
@@ -38,15 +37,23 @@ interface AppLayoutProps {
 }
 
 const shortcutHintContent = (
-  <div style={{ fontSize: 12, lineHeight: '20px' }}>
-    <div><b>Alt+1</b> 仪表盘</div>
-    <div><b>Alt+2</b> AI 生成文章</div>
-    <div><b>Alt+3</b> 自动驾驶</div>
-    <div><b>Alt+4</b> 文章管理</div>
-    <div><b>Alt+5</b> 任务调度</div>
-    <div><b>Alt+6</b> 发布历史</div>
-    <div><b>Alt+7</b> 账号管理</div>
-    <div><b>Alt+8</b> 系统设置</div>
+  <div style={{ fontSize: 12, lineHeight: '22px', padding: '4px 0' }}>
+    {menuItems.map((item, i) => (
+      <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <kbd style={{
+          background: colors.bgActive,
+          padding: '1px 6px',
+          borderRadius: 4,
+          fontSize: 11,
+          fontFamily: 'monospace',
+          border: `1px solid ${colors.border}`,
+          color: colors.textSecondary,
+          minWidth: 42,
+          textAlign: 'center',
+        }}>Alt+{i + 1}</kbd>
+        <span style={{ color: colors.textSecondary }}>{item.label}</span>
+      </div>
+    ))}
   </div>
 );
 
@@ -54,121 +61,160 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Register global keyboard shortcuts
   useKeyboardShortcuts();
 
-  /** 获取当前选中的菜单项 */
-  const getSelectedKey = () => {
+  const selectedKey = useMemo(() => {
     const path = location.pathname;
-    // 精确匹配
     const found = menuItems.find((item) => item.key === path);
     if (found) return [found.key];
-    // 前缀匹配
-    const prefix = menuItems.find(
-      (item) => item.key !== '/' && path.startsWith(item.key)
-    );
+    const prefix = menuItems.find((item) => item.key !== '/' && path.startsWith(item.key));
     return prefix ? [prefix.key] : ['/'];
-  };
+  }, [location.pathname]);
+
+  const currentTitle = useMemo(
+    () => menuItems.find((item) => selectedKey.includes(item.key))?.label || '仪表盘',
+    [selectedKey]
+  );
+
+  const siderWidth = collapsed ? layout.sidebarCollapsedWidth : layout.sidebarWidth;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      {/* 侧边栏 */}
+      {/* Sidebar */}
       <Sider
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
         trigger={null}
-        width={240}
+        width={layout.sidebarWidth}
+        collapsedWidth={layout.sidebarCollapsedWidth}
         style={{
-          background: '#1a1a2e',
-          borderRight: '1px solid #2a2a3e',
-          overflow: 'auto',
+          background: gradients.sidebar,
+          borderRight: `1px solid ${colors.border}`,
+          overflow: 'hidden',
           height: '100vh',
           position: 'fixed',
           left: 0,
           top: 0,
           bottom: 0,
           zIndex: 100,
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        {/* Logo 区域 */}
+        {/* Logo */}
         <div
           style={{
-            height: 64,
+            height: layout.headerHeight,
             display: 'flex',
             alignItems: 'center',
             justifyContent: collapsed ? 'center' : 'flex-start',
             padding: collapsed ? '0' : '0 20px',
-            borderBottom: '1px solid #2a2a3e',
+            borderBottom: `1px solid ${colors.border}`,
             cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
           }}
           onClick={() => navigate('/')}
         >
-          <ThunderboltOutlined
-            style={{
-              fontSize: 24,
-              color: '#1677ff',
-              marginRight: collapsed ? 0 : 12,
-            }}
-          />
+          {/* Logo glow background */}
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: collapsed ? '50%' : 28,
+            transform: collapsed ? 'translate(-50%, -50%)' : 'translateY(-50%)',
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(22,119,255,0.2) 0%, transparent 70%)',
+            filter: 'blur(4px)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 34,
+            height: 34,
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, rgba(22,119,255,0.2), rgba(114,46,209,0.2))',
+            border: '1px solid rgba(22,119,255,0.3)',
+            marginRight: collapsed ? 0 : 12,
+            fontSize: 18,
+            color: colors.primary,
+            flexShrink: 0,
+          }}>
+            <RocketOutlined />
+          </div>
           {!collapsed && (
-            <Title
-              level={4}
-              style={{
-                margin: 0,
-                color: '#e8e8e8',
-                fontSize: 16,
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: colors.textPrimary,
                 whiteSpace: 'nowrap',
-              }}
-            >
-              知乎自动发文
-            </Title>
+                letterSpacing: '0.5px',
+                lineHeight: 1.2,
+              }}>
+                AutoPilot
+              </div>
+              <div style={{
+                fontSize: 10,
+                color: colors.textTertiary,
+                whiteSpace: 'nowrap',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                marginTop: 1,
+              }}>
+                Content Engine
+              </div>
+            </div>
           )}
         </div>
 
-        {/* 导航菜单 */}
-        <Menu
-          mode="inline"
-          selectedKeys={getSelectedKey()}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-          style={{
-            background: 'transparent',
-            borderRight: 'none',
-            marginTop: 8,
-          }}
-        />
+        {/* Navigation */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
+          <Menu
+            mode="inline"
+            selectedKeys={selectedKey}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+            className="sidebar-menu"
+            style={{
+              background: 'transparent',
+              borderRight: 'none',
+            }}
+          />
+        </div>
 
-        {/* 快捷键提示 */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 16,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          <Tooltip title={shortcutHintContent} placement="right" overlayStyle={{ maxWidth: 220 }}>
+        {/* Shortcut hint */}
+        <div style={{
+          padding: '12px 0',
+          display: 'flex',
+          justifyContent: 'center',
+          borderTop: `1px solid ${colors.border}`,
+        }}>
+          <Tooltip title={shortcutHintContent} placement="right" overlayStyle={{ maxWidth: 240 }}>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
                 cursor: 'pointer',
-                color: '#666',
+                color: colors.textDisabled,
                 fontSize: 12,
-                padding: '4px 12px',
-                borderRadius: 4,
-                transition: 'color 0.2s',
+                padding: '6px 12px',
+                borderRadius: 6,
+                transition: 'all 0.25s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#a0a0a0';
+                e.currentTarget.style.color = colors.textSecondary;
+                e.currentTarget.style.background = colors.bgHover;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#666';
+                e.currentTarget.style.color = colors.textDisabled;
+                e.currentTarget.style.background = 'transparent';
               }}
             >
               <KeyOutlined />
@@ -178,77 +224,103 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </div>
       </Sider>
 
-      {/* 右侧内容区 */}
+      {/* Content Layout */}
       <Layout
         style={{
-          marginLeft: collapsed ? 80 : 240,
-          transition: 'margin-left 0.2s',
-          background: '#141414',
+          marginLeft: siderWidth,
+          transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          background: colors.bgLayout,
+          minHeight: '100vh',
         }}
       >
-        {/* 顶部导航栏 */}
+        {/* Header */}
         <Header
           style={{
-            background: '#1a1a2e',
+            background: colors.glassBg,
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid #2a2a3e',
+            borderBottom: `1px solid ${colors.glassBorder}`,
             position: 'sticky',
             top: 0,
             zIndex: 99,
-            height: 64,
+            height: layout.headerHeight,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            {/* 折叠按钮 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Collapse toggle */}
             <div
               onClick={() => setCollapsed(!collapsed)}
               style={{
-                fontSize: 18,
+                fontSize: 16,
                 cursor: 'pointer',
-                color: '#a0a0a0',
-                marginRight: 16,
-                padding: '4px 8px',
-                borderRadius: 4,
-                transition: 'all 0.2s',
+                color: colors.textTertiary,
+                padding: '6px 8px',
+                borderRadius: 6,
+                transition: 'all 0.25s ease',
+                display: 'flex',
+                alignItems: 'center',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#1677ff';
-                e.currentTarget.style.background = 'rgba(22,119,255,0.1)';
+                e.currentTarget.style.color = colors.primary;
+                e.currentTarget.style.background = 'rgba(22,119,255,0.08)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#a0a0a0';
+                e.currentTarget.style.color = colors.textTertiary;
                 e.currentTarget.style.background = 'transparent';
               }}
             >
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </div>
-            {/* 当前页面标题 */}
-            <span style={{ color: '#e8e8e8', fontSize: 16, fontWeight: 500 }}>
-              {menuItems.find((item) => getSelectedKey().includes(item.key))
-                ?.label || '仪表盘'}
-            </span>
+
+            {/* Page title */}
+            <Text style={{
+              fontSize: 16,
+              fontWeight: 600,
+              color: colors.textPrimary,
+              letterSpacing: '0.2px',
+            }}>
+              {currentTitle}
+            </Text>
           </div>
 
-          {/* 右侧：通知 + 用户信息 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Right section */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <NotificationCenter />
-            <span style={{ color: '#a0a0a0', fontSize: 13 }}>管理员</span>
+            <div style={{
+              height: 20,
+              width: 1,
+              background: colors.border,
+              margin: '0 4px',
+            }} />
+            <Text style={{
+              color: colors.textTertiary,
+              fontSize: 13,
+              marginRight: 4,
+            }}>
+              Admin
+            </Text>
             <Avatar
-              size={32}
+              size={30}
               icon={<UserOutlined />}
-              style={{ background: '#1677ff' }}
+              style={{
+                background: 'linear-gradient(135deg, #1677ff, #722ed1)',
+                border: '2px solid rgba(22,119,255,0.3)',
+                fontSize: 13,
+              }}
             />
           </div>
         </Header>
 
-        {/* 主内容区 */}
+        {/* Main Content */}
         <Content
+          className="page-enter"
           style={{
-            margin: 24,
-            minHeight: 'calc(100vh - 112px)',
+            margin: layout.contentPadding,
+            minHeight: `calc(100vh - ${layout.headerHeight + layout.contentPadding * 2}px)`,
           }}
         >
           {children}

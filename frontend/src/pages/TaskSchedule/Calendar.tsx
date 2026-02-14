@@ -3,6 +3,7 @@ import { Calendar as AntCalendar, Badge, Typography, Tag, Popover, Spin } from '
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { taskAPI } from '../../services/api';
+import { colors } from '../../styles/theme';
 import type { PublishTask } from '../../utils/types';
 
 const { Text } = Typography;
@@ -114,7 +115,7 @@ const Calendar: React.FC<CalendarProps> = ({ refreshKey }) => {
                 status={statusBadgeMap[t.status] || 'default'}
                 text={
                   <Text
-                    style={{ fontSize: 11, color: '#d0d0d0' }}
+                    style={{ fontSize: 11, color: colors.textPrimary }}
                     ellipsis
                   >
                     {t.article_title || `#${t.article_id}`}
@@ -125,7 +126,7 @@ const Calendar: React.FC<CalendarProps> = ({ refreshKey }) => {
           ))}
           {dayTasks.length > 3 && (
             <li>
-              <Text style={{ fontSize: 11, color: '#666' }}>
+              <Text style={{ fontSize: 11, color: colors.textTertiary }}>
                 +{dayTasks.length - 3} 更多
               </Text>
             </li>
@@ -144,7 +145,7 @@ const Calendar: React.FC<CalendarProps> = ({ refreshKey }) => {
         }}
         onPanelChange={(date) => setCurrentMonth(date)}
         style={{
-          background: '#1f1f1f',
+          background: colors.bgContainer,
           borderRadius: 12,
         }}
       />

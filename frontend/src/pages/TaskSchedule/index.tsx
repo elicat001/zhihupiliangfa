@@ -37,6 +37,7 @@ import { useArticleStore } from '../../stores/articleStore';
 import { useAccountStore } from '../../stores/accountStore';
 import { useSSE } from '../../hooks/useSSE';
 import { statsAPI } from '../../services/api';
+import { colors } from '../../styles/theme';
 import Calendar from './Calendar';
 import type { PublishTask, TaskStatus } from '../../utils/types';
 import type { ColumnsType } from 'antd/es/table';
@@ -284,7 +285,7 @@ const TaskSchedule: React.FC = () => {
       key: 'article_title',
       ellipsis: true,
       render: (text: string) => (
-        <Text style={{ color: '#e8e8e8' }} ellipsis={{ tooltip: text }}>
+        <Text style={{ color: colors.textPrimary }} ellipsis={{ tooltip: text }}>
           {text}
         </Text>
       ),
@@ -295,7 +296,7 @@ const TaskSchedule: React.FC = () => {
       key: 'account_nickname',
       width: 130,
       render: (text: string) => (
-        <Text style={{ color: '#a0a0a0' }}>{text}</Text>
+        <Text style={{ color: colors.textSecondary }}>{text}</Text>
       ),
     },
     {
@@ -305,12 +306,12 @@ const TaskSchedule: React.FC = () => {
       width: 170,
       render: (time: string | null) =>
         time ? (
-          <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
             <ClockCircleOutlined style={{ marginRight: 4 }} />
             {new Date(time).toLocaleString('zh-CN')}
           </Text>
         ) : (
-          <Text style={{ color: '#666', fontSize: 13 }}>立即执行</Text>
+          <Text style={{ color: colors.textTertiary, fontSize: 13 }}>立即执行</Text>
         ),
     },
     {
@@ -319,7 +320,7 @@ const TaskSchedule: React.FC = () => {
       key: 'created_at',
       width: 170,
       render: (time: string) => (
-        <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
           {time ? new Date(time).toLocaleString('zh-CN') : '-'}
         </Text>
       ),
@@ -330,7 +331,7 @@ const TaskSchedule: React.FC = () => {
       key: 'retry_count',
       width: 60,
       render: (count: number) => (
-        <Text style={{ color: count > 0 ? '#faad14' : '#666' }}>{count}</Text>
+        <Text style={{ color: count > 0 ? colors.warning : colors.textTertiary }}>{count}</Text>
       ),
     },
     {
@@ -375,7 +376,7 @@ const TaskSchedule: React.FC = () => {
             </Tag>
           );
         }
-        return <Text style={{ color: '#666' }}>-</Text>;
+        return <Text style={{ color: colors.textTertiary }}>-</Text>;
       },
     },
   ];
@@ -388,20 +389,21 @@ const TaskSchedule: React.FC = () => {
       {/* ============ Left side: create task form ============ */}
       <Col xs={24} lg={9}>
         <Card
+          className="card-header-gradient"
           title={
-            <span style={{ color: '#e8e8e8' }}>
-              <PlusOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            <span className="section-title" style={{ color: colors.textPrimary }}>
+              <PlusOutlined style={{ marginRight: 8, color: colors.primary }} />
               创建发文任务
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          styles={{ header: { borderBottom: `1px solid ${colors.border}` } }}
         >
-          <Form form={form} layout="vertical">
+          <Form form={form} layout="vertical" className="enhanced-form">
             {/* Batch mode toggle */}
             <Form.Item label="批量发布">
               <Switch
@@ -503,7 +505,7 @@ const TaskSchedule: React.FC = () => {
               </>
             )}
 
-            <Divider style={{ borderColor: '#2a2a3e' }} />
+            <Divider style={{ borderColor: colors.border }} />
 
             <Form.Item>
               <Button
@@ -531,12 +533,12 @@ const TaskSchedule: React.FC = () => {
         {/* ---------- Toolbar: view toggle + optimal times ---------- */}
         <Card
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
             marginBottom: 16,
           }}
-          bodyStyle={{ padding: '12px 16px' }}
+          styles={{ body: { padding: '12px 16px' } }}
         >
           <div
             style={{
@@ -582,14 +584,14 @@ const TaskSchedule: React.FC = () => {
                 gap: 6,
               }}
             >
-              <Text style={{ color: '#a0a0a0', fontSize: 13, marginRight: 4 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, marginRight: 4 }}>
                 <ClockCircleOutlined style={{ marginRight: 4 }} />
                 最佳时间:
               </Text>
               {optimalLoading ? (
                 <Spin size="small" />
               ) : optimalTimes.length === 0 ? (
-                <Text style={{ color: '#666', fontSize: 12 }}>暂无数据</Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 12 }}>暂无数据</Text>
               ) : (
                 optimalTimes.slice(0, 5).map((t) => (
                   <Tooltip key={t.hour} title={t.reason}>
@@ -616,9 +618,10 @@ const TaskSchedule: React.FC = () => {
         {/* ---------- List view ---------- */}
         {viewMode === '列表视图' && (
           <Card
+            className="card-header-gradient enhanced-table"
             title={
-              <span style={{ color: '#e8e8e8' }}>
-                <ScheduleOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+              <span className="section-title" style={{ color: colors.textPrimary }}>
+                <ScheduleOutlined style={{ marginRight: 8, color: colors.primary }} />
                 任务列表
               </span>
             }
@@ -653,12 +656,14 @@ const TaskSchedule: React.FC = () => {
               </Space>
             }
             style={{
-              background: '#1f1f1f',
-              borderColor: '#2a2a3e',
+              background: colors.bgContainer,
+              borderColor: colors.border,
               borderRadius: 12,
             }}
-            headStyle={{ borderBottom: '1px solid #2a2a3e' }}
-            bodyStyle={{ padding: 0 }}
+            styles={{
+              header: { borderBottom: `1px solid ${colors.border}` },
+              body: { padding: 0 },
+            }}
           >
             <Table
               columns={columns}
@@ -682,18 +687,19 @@ const TaskSchedule: React.FC = () => {
         {/* ---------- Calendar view ---------- */}
         {viewMode === '日历视图' && (
           <Card
+            className="card-header-gradient"
             title={
-              <span style={{ color: '#e8e8e8' }}>
-                <CalendarOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+              <span className="section-title" style={{ color: colors.textPrimary }}>
+                <CalendarOutlined style={{ marginRight: 8, color: colors.primary }} />
                 任务日历
               </span>
             }
             style={{
-              background: '#1f1f1f',
-              borderColor: '#2a2a3e',
+              background: colors.bgContainer,
+              borderColor: colors.border,
               borderRadius: 12,
             }}
-            headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+            styles={{ header: { borderBottom: `1px solid ${colors.border}` } }}
           >
             <Calendar refreshKey={calendarRefreshKey} />
           </Card>

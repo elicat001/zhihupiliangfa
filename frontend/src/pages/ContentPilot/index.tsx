@@ -40,6 +40,7 @@ import {
 import type { ContentDirection, DirectionFormData, PilotStatus } from '../../utils/types';
 import { pilotAPI, accountAPI } from '../../services/api';
 import type { Account } from '../../utils/types';
+import { colors, gradients } from '../../styles/theme';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -204,7 +205,7 @@ const ContentPilot: React.FC = () => {
       width: 160,
       render: (text: string, record: ContentDirection) => (
         <Space>
-          <Text strong style={{ color: '#e8e8e8' }}>{text}</Text>
+          <Text strong style={{ color: colors.textPrimary }}>{text}</Text>
           {record.is_active && <Badge status="processing" />}
         </Space>
       ),
@@ -226,8 +227,8 @@ const ContentPilot: React.FC = () => {
       key: 'progress',
       width: 100,
       render: (_: unknown, record: ContentDirection) => (
-        <Text style={{ color: '#e8e8e8' }}>
-          <span style={{ color: record.today_generated >= record.daily_count ? '#52c41a' : '#1677ff', fontWeight: 600 }}>
+        <Text style={{ color: colors.textPrimary }}>
+          <span style={{ color: record.today_generated >= record.daily_count ? colors.success : colors.primary, fontWeight: 600 }}>
             {record.today_generated}
           </span>
           {' / '}
@@ -240,7 +241,7 @@ const ContentPilot: React.FC = () => {
       dataIndex: 'total_generated',
       key: 'total_generated',
       width: 70,
-      render: (v: number) => <Text style={{ color: '#a0a0a0' }}>{v}</Text>,
+      render: (v: number) => <Text style={{ color: colors.textSecondary }}>{v}</Text>,
     },
     {
       title: '模式',
@@ -275,7 +276,7 @@ const ContentPilot: React.FC = () => {
       width: 140,
       render: (_: unknown, record: ContentDirection) => {
         if (!record.schedule_start && !record.schedule_end) {
-          return <Text style={{ color: '#a0a0a0' }}>长期</Text>;
+          return <Text style={{ color: colors.textSecondary }}>长期</Text>;
         }
         return (
           <Tooltip title={`${record.schedule_start || '?'} ~ ${record.schedule_end || '?'}${record.schedule_days ? ` (${record.schedule_days}天)` : ''}`}>
@@ -306,7 +307,7 @@ const ContentPilot: React.FC = () => {
               icon={<ThunderboltOutlined />}
               loading={runningIds.has(record.id)}
               onClick={() => handleRun(record.id)}
-              style={{ color: '#faad14' }}
+              style={{ color: colors.warning }}
             />
           </Tooltip>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
@@ -323,41 +324,41 @@ const ContentPilot: React.FC = () => {
       {/* 状态卡片 */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}>
-          <Card size="small" style={{ background: '#1f1f1f', borderColor: '#2a2a3e' }}>
+          <Card className="stat-card blue" size="small" style={{ background: gradients.cardBlue, borderColor: colors.border }}>
             <Statistic
-              title={<span style={{ color: '#a0a0a0' }}>自动驾驶</span>}
+              title={<span style={{ color: colors.textSecondary }}>自动驾驶</span>}
               value={pilotStatus?.is_running ? '运行中' : '已停止'}
-              valueStyle={{ color: pilotStatus?.is_running ? '#52c41a' : '#a0a0a0', fontSize: 18 }}
+              valueStyle={{ color: pilotStatus?.is_running ? colors.success : colors.textSecondary, fontSize: 18 }}
               prefix={pilotStatus?.is_running ? <SyncOutlined spin /> : <PauseCircleOutlined />}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card size="small" style={{ background: '#1f1f1f', borderColor: '#2a2a3e' }}>
+          <Card className="stat-card purple" size="small" style={{ background: gradients.cardPurple, borderColor: colors.border }}>
             <Statistic
-              title={<span style={{ color: '#a0a0a0' }}>活跃方向</span>}
+              title={<span style={{ color: colors.textSecondary }}>活跃方向</span>}
               value={pilotStatus?.active_directions || 0}
-              suffix={<span style={{ fontSize: 14, color: '#a0a0a0' }}>/ {pilotStatus?.total_directions || 0}</span>}
-              valueStyle={{ color: '#1677ff', fontSize: 18 }}
+              suffix={<span style={{ fontSize: 14, color: colors.textSecondary }}>/ {pilotStatus?.total_directions || 0}</span>}
+              valueStyle={{ color: colors.primary, fontSize: 18 }}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card size="small" style={{ background: '#1f1f1f', borderColor: '#2a2a3e' }}>
+          <Card className="stat-card yellow" size="small" style={{ background: gradients.cardYellow, borderColor: colors.border }}>
             <Statistic
-              title={<span style={{ color: '#a0a0a0' }}>今日已生成</span>}
+              title={<span style={{ color: colors.textSecondary }}>今日已生成</span>}
               value={pilotStatus?.today_total_generated || 0}
               suffix="篇"
-              valueStyle={{ color: '#faad14', fontSize: 18 }}
+              valueStyle={{ color: colors.warning, fontSize: 18 }}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card size="small" style={{ background: '#1f1f1f', borderColor: '#2a2a3e' }}>
+          <Card className="stat-card green" size="small" style={{ background: gradients.cardGreen, borderColor: colors.border }}>
             <Statistic
-              title={<span style={{ color: '#a0a0a0' }}>调度频率</span>}
+              title={<span style={{ color: colors.textSecondary }}>调度频率</span>}
               value="每30分钟"
-              valueStyle={{ color: '#e8e8e8', fontSize: 18 }}
+              valueStyle={{ color: colors.textPrimary, fontSize: 18 }}
               prefix={<RocketOutlined />}
             />
           </Card>
@@ -366,9 +367,10 @@ const ContentPilot: React.FC = () => {
 
       {/* 方向列表 */}
       <Card
+        className="card-header-gradient enhanced-table"
         title={
-          <span style={{ color: '#e8e8e8' }}>
-            <RocketOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+          <span className="section-title" style={{ color: colors.textPrimary }}>
+            <RocketOutlined style={{ marginRight: 8, color: colors.primary }} />
             内容方向管理
           </span>
         }
@@ -400,8 +402,8 @@ const ContentPilot: React.FC = () => {
             </Button>
           </Space>
         }
-        style={{ background: '#1f1f1f', borderColor: '#2a2a3e', borderRadius: 12 }}
-        headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        style={{ background: colors.bgContainer, borderColor: colors.border, borderRadius: 12 }}
+        styles={{ header: { borderBottom: `1px solid ${colors.border}` } }}
       >
         <Table
           dataSource={directions}
@@ -426,8 +428,9 @@ const ContentPilot: React.FC = () => {
         }}
         width={640}
         okText={editingId ? '保存' : '创建'}
+        styles={{ body: { padding: '20px 24px' } }}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={form} layout="vertical" className="enhanced-form" style={{ marginTop: 16 }}>
           <Form.Item
             name="name"
             label="方向名称"
@@ -452,7 +455,7 @@ const ContentPilot: React.FC = () => {
             <TextArea rows={3} placeholder="粘贴参考文章内容，用于 AI 分析写作方向..." />
           </Form.Item>
 
-          <Divider style={{ margin: '12px 0', borderColor: '#2a2a3e' }} />
+          <Divider style={{ margin: '12px 0', borderColor: colors.border }} />
 
           <Row gutter={16}>
             <Col span={8}>
@@ -507,7 +510,7 @@ const ContentPilot: React.FC = () => {
             </Col>
           </Row>
 
-          <Divider style={{ margin: '12px 0', borderColor: '#2a2a3e' }} />
+          <Divider style={{ margin: '12px 0', borderColor: colors.border }} />
 
           <Form.Item
             name="anti_ai_level"
@@ -560,7 +563,7 @@ const ContentPilot: React.FC = () => {
             </Col>
           </Row>
 
-          <Divider style={{ margin: '12px 0', borderColor: '#2a2a3e' }} />
+          <Divider style={{ margin: '12px 0', borderColor: colors.border }} />
 
           <Form.Item
             name="schedule_range"

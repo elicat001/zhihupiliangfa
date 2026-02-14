@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons';
 import { taskAPI } from '../../services/api';
 import { useAccountStore } from '../../stores/accountStore';
+import { colors } from '../../styles/theme';
 import type { PublishTask, TaskStatus } from '../../utils/types';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -169,7 +170,7 @@ const PublishHistory: React.FC = () => {
       key: 'article_title',
       ellipsis: true,
       render: (text: string) => (
-        <Text style={{ color: '#e8e8e8' }} ellipsis={{ tooltip: text }}>
+        <Text style={{ color: colors.textPrimary }} ellipsis={{ tooltip: text }}>
           {text}
         </Text>
       ),
@@ -180,7 +181,7 @@ const PublishHistory: React.FC = () => {
       key: 'account_nickname',
       width: 120,
       render: (text: string) => (
-        <Text style={{ color: '#a0a0a0' }}>{text}</Text>
+        <Text style={{ color: colors.textSecondary }}>{text}</Text>
       ),
     },
     {
@@ -200,7 +201,7 @@ const PublishHistory: React.FC = () => {
       key: 'retry_count',
       width: 80,
       render: (count: number) => (
-        <Text style={{ color: count > 0 ? '#faad14' : '#666' }}>{count}</Text>
+        <Text style={{ color: count > 0 ? colors.warning : colors.textTertiary }}>{count}</Text>
       ),
     },
     {
@@ -209,7 +210,7 @@ const PublishHistory: React.FC = () => {
       key: 'created_at',
       width: 170,
       render: (time: string) => (
-        <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
           {time ? new Date(time).toLocaleString('zh-CN') : '-'}
         </Text>
       ),
@@ -225,12 +226,12 @@ const PublishHistory: React.FC = () => {
             size="small"
             icon={<PictureOutlined />}
             onClick={() => handleViewScreenshot(record.id)}
-            style={{ color: '#1677ff' }}
+            style={{ color: colors.primary }}
           >
             查看
           </Button>
         ) : (
-          <Text style={{ color: '#666' }}>-</Text>
+          <Text style={{ color: colors.textTertiary }}>-</Text>
         ),
     },
     {
@@ -245,7 +246,7 @@ const PublishHistory: React.FC = () => {
             {msg}
           </Text>
         ) : (
-          <Text style={{ color: '#666' }}>-</Text>
+          <Text style={{ color: colors.textTertiary }}>-</Text>
         ),
     },
   ];
@@ -253,18 +254,19 @@ const PublishHistory: React.FC = () => {
   return (
     <div>
       <Card
+        className="card-header-gradient enhanced-table"
         title={
-          <span style={{ color: '#e8e8e8' }}>
-            <HistoryOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+          <span className="section-title" style={{ color: colors.textPrimary }}>
+            <HistoryOutlined style={{ marginRight: 8, color: colors.primary }} />
             发布历史
           </span>
         }
         style={{
-          background: '#1f1f1f',
-          borderColor: '#2a2a3e',
+          background: colors.bgContainer,
+          borderColor: colors.border,
           borderRadius: 12,
         }}
-        headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        styles={{ header: { borderBottom: `1px solid ${colors.border}` } }}
       >
         {/* 筛选栏 */}
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
@@ -360,7 +362,7 @@ const PublishHistory: React.FC = () => {
           style={{
             textAlign: 'center',
             padding: 16,
-            background: '#141414',
+            background: colors.bgInput,
             borderRadius: 8,
             minHeight: 300,
           }}
@@ -371,7 +373,7 @@ const PublishHistory: React.FC = () => {
             style={{ maxWidth: '100%', borderRadius: 4 }}
             fallback="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzFmMWYxZiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+5peg5oiq5Zu+PC90ZXh0Pjwvc3ZnPg=="
           />
-          <div style={{ marginTop: 12, color: '#666' }}>
+          <div style={{ marginTop: 12, color: colors.textTertiary }}>
             <Text type="secondary">
               截图可能需要几秒钟加载，如无截图则表示发布时未启用截图功能
             </Text>

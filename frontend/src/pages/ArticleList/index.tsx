@@ -33,6 +33,7 @@ import { useArticleStore } from '../../stores/articleStore';
 import { useAccountStore } from '../../stores/accountStore';
 import { publishAPI, articleAPI } from '../../services/api';
 import MarkdownEditor from '../../components/MarkdownEditor';
+import { colors } from '../../styles/theme';
 import type { Article, ArticleStatus } from '../../utils/types';
 import type { ColumnsType } from 'antd/es/table';
 import type { RcFile } from 'antd/es/upload/interface';
@@ -315,7 +316,7 @@ const ArticleList: React.FC = () => {
       render: (text: string, record: Article) => (
         <a
           onClick={() => handleOpenPreview(record)}
-          style={{ color: '#1677ff' }}
+          style={{ color: colors.primary }}
         >
           {text}
         </a>
@@ -330,7 +331,7 @@ const ArticleList: React.FC = () => {
         category ? (
           <Tag color={categoryColorMap[category] || 'default'}>{category}</Tag>
         ) : (
-          <Text style={{ color: '#555' }}>-</Text>
+          <Text style={{ color: colors.textTertiary }}>-</Text>
         ),
     },
     {
@@ -350,7 +351,7 @@ const ArticleList: React.FC = () => {
       key: 'word_count',
       width: 80,
       render: (count: number) => (
-        <Text style={{ color: '#a0a0a0' }}>{count}</Text>
+        <Text style={{ color: colors.textSecondary }}>{count}</Text>
       ),
     },
     {
@@ -370,7 +371,7 @@ const ArticleList: React.FC = () => {
       key: 'created_at',
       width: 170,
       render: (time: string) => (
-        <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
           {time ? new Date(time).toLocaleString('zh-CN') : '-'}
         </Text>
       ),
@@ -386,7 +387,7 @@ const ArticleList: React.FC = () => {
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleOpenPreview(record)}
-            style={{ color: '#1677ff' }}
+            style={{ color: colors.primary }}
           >
             查看
           </Button>
@@ -395,7 +396,7 @@ const ArticleList: React.FC = () => {
             size="small"
             icon={<EditOutlined />}
             onClick={() => handleOpenRewrite(record)}
-            style={{ color: '#52c41a' }}
+            style={{ color: colors.success }}
           >
             改写
           </Button>
@@ -423,9 +424,10 @@ const ArticleList: React.FC = () => {
   return (
     <div>
       <Card
+        className="card-header-gradient enhanced-table"
         title={
-          <span style={{ color: '#e8e8e8' }}>
-            <FileTextOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+          <span style={{ color: colors.textPrimary }}>
+            <FileTextOutlined style={{ marginRight: 8, color: colors.primary }} />
             文章管理
           </span>
         }
@@ -434,37 +436,37 @@ const ArticleList: React.FC = () => {
             <Button
               icon={<ImportOutlined />}
               onClick={() => setImportModalVisible(true)}
-              style={{ borderColor: '#2a2a3e' }}
+              style={{ borderColor: colors.border }}
             >
               导入
             </Button>
             <Button
               icon={<ExportOutlined />}
               onClick={handleExport}
-              style={{ borderColor: '#2a2a3e' }}
+              style={{ borderColor: colors.border }}
             >
               导出
             </Button>
           </Space>
         }
         style={{
-          background: '#1f1f1f',
-          borderColor: '#2a2a3e',
+          background: colors.bgContainer,
+          borderColor: colors.border,
           borderRadius: 12,
         }}
-        headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+        styles={{ header: { borderBottom: `1px solid ${colors.border}` } }}
       >
         {/* 搜索和筛选栏 */}
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
           <Col xs={24} sm={8}>
             <Input
               placeholder="搜索文章标题..."
-              prefix={<SearchOutlined style={{ color: '#666' }} />}
+              prefix={<SearchOutlined style={{ color: colors.textTertiary }} />}
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               onPressEnter={handleSearch}
               allowClear
-              style={{ background: '#141414', borderColor: '#2a2a3e' }}
+              style={{ background: colors.bgInput, borderColor: colors.border }}
             />
           </Col>
           <Col xs={12} sm={4}>
@@ -522,15 +524,15 @@ const ArticleList: React.FC = () => {
             style={{
               marginBottom: 16,
               padding: '8px 16px',
-              background: '#141414',
+              background: colors.bgInput,
               borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
               gap: 12,
             }}
           >
-            <Text style={{ color: '#a0a0a0' }}>
-              已选择 <span style={{ color: '#1677ff' }}>{selectedRowKeys.length}</span> 项
+            <Text style={{ color: colors.textSecondary }}>
+              已选择 <span style={{ color: colors.primary }}>{selectedRowKeys.length}</span> 项
             </Text>
             <Popconfirm
               title={`确认删除 ${selectedRowKeys.length} 篇文章？`}
@@ -564,7 +566,7 @@ const ArticleList: React.FC = () => {
                   alignItems: 'center',
                   gap: 16,
                   padding: '12px 0',
-                  borderBottom: '1px solid #2a2a3e',
+                  borderBottom: `1px solid ${colors.border}`,
                 }}
               >
                 <Skeleton.Input active size="small" style={{ width: 16, minWidth: 16 }} />
@@ -610,12 +612,12 @@ const ArticleList: React.FC = () => {
         cancelText="取消"
       >
         <div style={{ marginBottom: 16 }}>
-          <Text style={{ color: '#a0a0a0', display: 'block', marginBottom: 8 }}>
+          <Text style={{ color: colors.textSecondary, display: 'block', marginBottom: 8 }}>
             已选择 {selectedRowKeys.length} 篇文章
           </Text>
         </div>
         <div style={{ marginBottom: 16 }}>
-          <Text style={{ color: '#e8e8e8', display: 'block', marginBottom: 8 }}>选择发布账号</Text>
+          <Text style={{ color: colors.textPrimary, display: 'block', marginBottom: 8 }}>选择发布账号</Text>
           <Select
             placeholder="选择账号"
             value={batchAccountId}
@@ -628,7 +630,7 @@ const ArticleList: React.FC = () => {
           />
         </div>
         <div>
-          <Text style={{ color: '#e8e8e8', display: 'block', marginBottom: 8 }}>发布间隔（分钟）</Text>
+          <Text style={{ color: colors.textPrimary, display: 'block', marginBottom: 8 }}>发布间隔（分钟）</Text>
           <InputNumber
             min={5}
             max={1440}
@@ -647,7 +649,7 @@ const ArticleList: React.FC = () => {
         footer={null}
       >
         <div style={{ padding: '16px 0' }}>
-          <Text style={{ color: '#a0a0a0', display: 'block', marginBottom: 16 }}>
+          <Text style={{ color: colors.textSecondary, display: 'block', marginBottom: 16 }}>
             支持导入 .md 和 .txt 格式文件，文章标题将从文件第一行标题或首行文字中提取。
           </Text>
           <Upload.Dragger
@@ -655,15 +657,15 @@ const ArticleList: React.FC = () => {
             showUploadList={false}
             beforeUpload={handleImportFile}
             disabled={importLoading}
-            style={{ background: '#141414', borderColor: '#2a2a3e' }}
+            style={{ background: colors.bgInput, borderColor: colors.border }}
           >
             <p className="ant-upload-drag-icon">
-              <UploadOutlined style={{ color: '#1677ff', fontSize: 48 }} />
+              <UploadOutlined style={{ color: colors.primary, fontSize: 48 }} />
             </p>
-            <p className="ant-upload-text" style={{ color: '#e8e8e8' }}>
+            <p className="ant-upload-text" style={{ color: colors.textPrimary }}>
               {importLoading ? '导入中...' : '点击或拖拽文件到此区域'}
             </p>
-            <p className="ant-upload-hint" style={{ color: '#666' }}>
+            <p className="ant-upload-hint" style={{ color: colors.textTertiary }}>
               支持 .md / .txt / .markdown 格式
             </p>
           </Upload.Dragger>
@@ -681,7 +683,7 @@ const ArticleList: React.FC = () => {
                 size="small"
                 icon={<EditOutlined />}
                 onClick={handleToggleEditMode}
-                style={previewEditMode ? {} : { borderColor: '#2a2a3e' }}
+                style={previewEditMode ? {} : { borderColor: colors.border }}
               >
                 {previewEditMode ? '取消编辑' : '编辑'}
               </Button>
@@ -781,19 +783,19 @@ const ArticleList: React.FC = () => {
         {rewriteArticle && (
           <div>
             <div style={{ marginBottom: 16 }}>
-              <Text style={{ color: '#e8e8e8', display: 'block', marginBottom: 4 }}>
+              <Text style={{ color: colors.textPrimary, display: 'block', marginBottom: 4 }}>
                 原文标题
               </Text>
-              <Text style={{ color: '#a0a0a0' }}>
+              <Text style={{ color: colors.textSecondary }}>
                 {rewriteArticle.title}
               </Text>
-              <Text style={{ color: '#666', display: 'block', fontSize: 12, marginTop: 4 }}>
+              <Text style={{ color: colors.textTertiary, display: 'block', fontSize: 12, marginTop: 4 }}>
                 字数: {rewriteArticle.word_count} | 来源: {providerTextMap[rewriteArticle.ai_provider] || rewriteArticle.ai_provider}
               </Text>
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <Text style={{ color: '#e8e8e8', display: 'block', marginBottom: 8 }}>
+              <Text style={{ color: colors.textPrimary, display: 'block', marginBottom: 8 }}>
                 改写风格
               </Text>
               <Select
@@ -805,7 +807,7 @@ const ArticleList: React.FC = () => {
             </div>
 
             <div>
-              <Text style={{ color: '#e8e8e8', display: 'block', marginBottom: 8 }}>
+              <Text style={{ color: colors.textPrimary, display: 'block', marginBottom: 8 }}>
                 额外指令（可选）
               </Text>
               <Input.TextArea
@@ -815,7 +817,7 @@ const ArticleList: React.FC = () => {
                 placeholder="如：增加更多数据支撑、使用更多比喻、控制在800字以内..."
                 maxLength={500}
                 showCount
-                style={{ background: '#141414', borderColor: '#2a2a3e' }}
+                style={{ background: colors.bgInput, borderColor: colors.border }}
               />
             </div>
           </div>

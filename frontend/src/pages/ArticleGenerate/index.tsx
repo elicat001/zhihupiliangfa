@@ -37,6 +37,7 @@ import {
   ThunderboltOutlined,
   PictureOutlined,
 } from '@ant-design/icons';
+import { colors } from '../../styles/theme';
 import { useArticleStore } from '../../stores/articleStore';
 import { useAccountStore } from '../../stores/accountStore';
 import { articleAPI, publishAPI, templateAPI, API_BASE_URL } from '../../services/api';
@@ -568,17 +569,17 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={10}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
-              <RobotOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            <span style={{ color: colors.textPrimary }}>
+              <RobotOutlined style={{ marginRight: 8, color: colors.primary }} />
               AI 文章生成
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           <Form
             form={form}
@@ -601,7 +602,7 @@ const ArticleGenerate: React.FC = () => {
                 placeholder="请输入文章主题或关键词，如：深度学习在自然语言处理中的应用"
                 maxLength={500}
                 showCount
-                style={{ background: '#141414', borderColor: '#2a2a3e' }}
+                style={{ background: colors.bgInput, borderColor: colors.border }}
               />
             </Form.Item>
 
@@ -701,7 +702,7 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={14}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
+            <span style={{ color: colors.textPrimary }}>
               <FilePreviewIcon />
               生成结果预览
             </span>
@@ -720,12 +721,12 @@ const ArticleGenerate: React.FC = () => {
             ) : null
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
             minHeight: 500,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           {isStreaming ? (
             /* ---- 流式生成中：实时显示内容 + 脉冲光标 ---- */
@@ -736,16 +737,16 @@ const ArticleGenerate: React.FC = () => {
                   alignItems: 'center',
                   gap: 8,
                   marginBottom: 16,
-                  color: '#1677ff',
+                  color: colors.primary,
                   fontSize: 14,
                 }}
               >
                 <Spin size="small" />
-                <Text style={{ color: '#1677ff' }}>AI 正在实时生成中...</Text>
+                <Text style={{ color: colors.primary }}>AI 正在实时生成中...</Text>
               </div>
               <div
                 style={{
-                  color: '#d0d0d0',
+                  color: colors.textPrimary,
                   lineHeight: 1.8,
                   maxHeight: 500,
                   overflowY: 'auto',
@@ -776,7 +777,7 @@ const ArticleGenerate: React.FC = () => {
               {/* 文章标题 */}
               <Title
                 level={3}
-                style={{ color: '#e8e8e8', marginBottom: 12 }}
+                style={{ color: colors.textPrimary, marginBottom: 12 }}
               >
                 {generatedArticle.title}
               </Title>
@@ -787,7 +788,7 @@ const ArticleGenerate: React.FC = () => {
                   display: 'flex',
                   gap: 16,
                   marginBottom: 16,
-                  color: '#a0a0a0',
+                  color: colors.textSecondary,
                   fontSize: 13,
                 }}
               >
@@ -797,7 +798,7 @@ const ArticleGenerate: React.FC = () => {
               {/* 标签 */}
               {generatedArticle.tags && generatedArticle.tags.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <TagsOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+                  <TagsOutlined style={{ marginRight: 8, color: colors.primary }} />
                   {generatedArticle.tags.map((tag, i) => (
                     <Tag key={i} color="blue" style={{ marginBottom: 4 }}>
                       {tag}
@@ -806,12 +807,12 @@ const ArticleGenerate: React.FC = () => {
                 </div>
               )}
 
-              <Divider style={{ borderColor: '#2a2a3e' }} />
+              <Divider style={{ borderColor: colors.border }} />
 
               {/* 文章正文（Markdown渲染） */}
               <div
                 style={{
-                  color: '#d0d0d0',
+                  color: colors.textPrimary,
                   lineHeight: 1.8,
                   maxHeight: 500,
                   overflowY: 'auto',
@@ -822,7 +823,7 @@ const ArticleGenerate: React.FC = () => {
                 }}
               />
 
-              <Divider style={{ borderColor: '#2a2a3e' }} />
+              <Divider style={{ borderColor: colors.border }} />
 
               {/* 操作按钮 */}
               <Space size="middle" wrap>
@@ -861,7 +862,7 @@ const ArticleGenerate: React.FC = () => {
           ) : (
             <Empty
               description={
-                <Text style={{ color: '#666' }}>
+                <Text style={{ color: colors.textTertiary }}>
                   在左侧填写主题和参数后，点击"一键生成文章"
                 </Text>
               }
@@ -887,7 +888,7 @@ const ArticleGenerate: React.FC = () => {
         cancelText="取消"
       >
         <div style={{ marginBottom: 16 }}>
-          <Text style={{ color: '#a0a0a0' }}>
+          <Text style={{ color: colors.textSecondary }}>
             文章将保存并立即创建发布任务
           </Text>
         </div>
@@ -910,17 +911,17 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={10}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
-              <OrderedListOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            <span style={{ color: colors.textPrimary }}>
+              <OrderedListOutlined style={{ marginRight: 8, color: colors.primary }} />
               系列文章生成
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           <Form
             form={seriesForm}
@@ -943,7 +944,7 @@ const ArticleGenerate: React.FC = () => {
                 placeholder="请输入系列文章的总主题，如：Python 从入门到精通"
                 maxLength={200}
                 showCount
-                style={{ background: '#141414', borderColor: '#2a2a3e' }}
+                style={{ background: colors.bgInput, borderColor: colors.border }}
               />
             </Form.Item>
 
@@ -1024,18 +1025,18 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={14}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
+            <span style={{ color: colors.textPrimary }}>
               <FilePreviewIcon />
               系列大纲 & 进度
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
             minHeight: 500,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           {seriesOutlineLoading ? (
             <div
@@ -1049,21 +1050,21 @@ const ArticleGenerate: React.FC = () => {
               }}
             >
               <Spin size="large" />
-              <Text style={{ color: '#a0a0a0' }}>
+              <Text style={{ color: colors.textSecondary }}>
                 AI 正在规划系列文章大纲，请稍候...
               </Text>
             </div>
           ) : seriesOutline ? (
             <div>
               {/* 系列标题和描述 */}
-              <Title level={4} style={{ color: '#e8e8e8', marginBottom: 8 }}>
+              <Title level={4} style={{ color: colors.textPrimary, marginBottom: 8 }}>
                 {seriesOutline.series_title}
               </Title>
-              <Text style={{ color: '#a0a0a0', display: 'block', marginBottom: 16 }}>
+              <Text style={{ color: colors.textSecondary, display: 'block', marginBottom: 16 }}>
                 {seriesOutline.description}
               </Text>
 
-              <Divider style={{ borderColor: '#2a2a3e' }} />
+              <Divider style={{ borderColor: colors.border }} />
 
               {/* 大纲文章列表（可编辑标题） */}
               <List
@@ -1071,7 +1072,7 @@ const ArticleGenerate: React.FC = () => {
                 renderItem={(item: SeriesOutlineArticle, index: number) => (
                   <List.Item
                     style={{
-                      borderBottom: '1px solid #2a2a3e',
+                      borderBottom: `1px solid ${colors.border}`,
                       padding: '12px 0',
                     }}
                   >
@@ -1085,14 +1086,14 @@ const ArticleGenerate: React.FC = () => {
                           onChange={(e) => handleOutlineTitleChange(index, e.target.value)}
                           style={{
                             flex: 1,
-                            background: '#141414',
-                            borderColor: '#2a2a3e',
-                            color: '#e8e8e8',
+                            background: colors.bgInput,
+                            borderColor: colors.border,
+                            color: colors.textPrimary,
                           }}
                           disabled={seriesGenerating}
                         />
                       </div>
-                      <Text style={{ color: '#a0a0a0', fontSize: 13, display: 'block', marginBottom: 4 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13, display: 'block', marginBottom: 4 }}>
                         {item.description}
                       </Text>
                       <div>
@@ -1115,12 +1116,12 @@ const ArticleGenerate: React.FC = () => {
                 )}
               />
 
-              <Divider style={{ borderColor: '#2a2a3e' }} />
+              <Divider style={{ borderColor: colors.border }} />
 
               {/* 生成进度 */}
               {seriesGenerating && (
                 <div style={{ marginBottom: 16 }}>
-                  <Text style={{ color: '#a0a0a0', display: 'block', marginBottom: 8 }}>
+                  <Text style={{ color: colors.textSecondary, display: 'block', marginBottom: 8 }}>
                     正在生成第 {seriesProgress.current + 1} / {seriesProgress.total} 篇...
                   </Text>
                   <Progress
@@ -1169,7 +1170,7 @@ const ArticleGenerate: React.FC = () => {
           ) : (
             <Empty
               description={
-                <Text style={{ color: '#666' }}>
+                <Text style={{ color: colors.textTertiary }}>
                   在左侧填写系列主题和参数后，点击"生成系列大纲"
                 </Text>
               }
@@ -1192,17 +1193,17 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={10}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
-              <ThunderboltOutlined style={{ marginRight: 8, color: '#faad14' }} />
+            <span style={{ color: colors.textPrimary }}>
+              <ThunderboltOutlined style={{ marginRight: 8, color: colors.warning }} />
               智能体生成
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           <Alert
             message="选择已有文章作为参考，智能体将自动分析主题和风格，规划并生成全新的相关文章"
@@ -1309,18 +1310,18 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={14}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
+            <span style={{ color: colors.textPrimary }}>
               <FilePreviewIcon />
               智能体生成结果
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
             minHeight: 500,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           {agentLoading ? (
             <div
@@ -1334,7 +1335,7 @@ const ArticleGenerate: React.FC = () => {
               }}
             >
               <Spin size="large" />
-              <Text style={{ color: '#a0a0a0' }}>
+              <Text style={{ color: colors.textSecondary }}>
                 智能体正在分析参考文章、规划大纲并逐篇生成中...
               </Text>
               <Steps
@@ -1362,19 +1363,19 @@ const ArticleGenerate: React.FC = () => {
                 renderItem={(item: Article, index: number) => (
                   <List.Item
                     style={{
-                      borderBottom: '1px solid #2a2a3e',
+                      borderBottom: `1px solid ${colors.border}`,
                       padding: '12px 0',
                     }}
                   >
                     <div style={{ width: '100%' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <Tag color="blue">第 {index + 1} 篇</Tag>
-                        <Text strong style={{ color: '#e8e8e8', flex: 1 }}>
+                        <Text strong style={{ color: colors.textPrimary, flex: 1 }}>
                           {item.title}
                         </Text>
                         <Tag>{item.word_count} 字</Tag>
                       </div>
-                      <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
                         {item.summary}
                       </Text>
                       {item.tags && item.tags.length > 0 && (
@@ -1392,7 +1393,7 @@ const ArticleGenerate: React.FC = () => {
           ) : (
             <Empty
               description={
-                <Text style={{ color: '#666' }}>
+                <Text style={{ color: colors.textTertiary }}>
                   选择参考文章后，点击"一键智能生成"，智能体将自动分析并批量生成相关文章
                 </Text>
               }
@@ -1414,24 +1415,24 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={10}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
-              <EditOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+            <span style={{ color: colors.textPrimary }}>
+              <EditOutlined style={{ marginRight: 8, color: colors.accent }} />
               故事生成
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           <Alert
             message="基于参考素材生成知乎盐选风格故事"
             description="粘贴新闻报道、背景资料或故事种子，AI 将自动提取人物和冲突，规划章节大纲，逐章生成完整故事，并进行去 AI 味润色。"
             type="info"
             showIcon
-            style={{ marginBottom: 16, background: '#1a1a2e', borderColor: '#2a2a3e' }}
+            style={{ marginBottom: 16, background: '#1a1a2e', borderColor: colors.border }}
           />
 
           <Form
@@ -1446,7 +1447,7 @@ const ArticleGenerate: React.FC = () => {
           >
             {/* 参考素材 */}
             <Form.Item
-              label={<span style={{ color: '#d0d0d0' }}>参考素材（必填）</span>}
+              label={<span style={{ color: colors.textPrimary }}>参考素材（必填）</span>}
               name="referenceText"
               rules={[
                 { required: true, message: '请输入参考素材' },
@@ -1459,16 +1460,16 @@ const ArticleGenerate: React.FC = () => {
                 maxLength={50000}
                 showCount
                 style={{
-                  background: '#141414',
+                  background: colors.bgInput,
                   borderColor: '#303050',
-                  color: '#e8e8e8',
+                  color: colors.textPrimary,
                 }}
               />
             </Form.Item>
 
             {/* 可选：参考文章 */}
             <Form.Item
-              label={<span style={{ color: '#d0d0d0' }}>参考已有文章（可选）</span>}
+              label={<span style={{ color: colors.textPrimary }}>参考已有文章（可选）</span>}
               name="storyArticleIds"
             >
               <Select
@@ -1487,7 +1488,7 @@ const ArticleGenerate: React.FC = () => {
 
             {/* 故事类型 */}
             <Form.Item
-              label={<span style={{ color: '#d0d0d0' }}>故事类型</span>}
+              label={<span style={{ color: colors.textPrimary }}>故事类型</span>}
               name="storyType"
             >
               <Select
@@ -1505,7 +1506,7 @@ const ArticleGenerate: React.FC = () => {
               <Col span={12}>
                 {/* 章节数 */}
                 <Form.Item
-                  label={<span style={{ color: '#d0d0d0' }}>章节数</span>}
+                  label={<span style={{ color: colors.textPrimary }}>章节数</span>}
                   name="chapterCount"
                 >
                   <Select
@@ -1521,7 +1522,7 @@ const ArticleGenerate: React.FC = () => {
               <Col span={12}>
                 {/* 总字数 */}
                 <Form.Item
-                  label={<span style={{ color: '#d0d0d0' }}>总字数</span>}
+                  label={<span style={{ color: colors.textPrimary }}>总字数</span>}
                   name="totalWordCount"
                 >
                   <Select
@@ -1539,7 +1540,7 @@ const ArticleGenerate: React.FC = () => {
 
             {/* AI 提供商 */}
             <Form.Item
-              label={<span style={{ color: '#d0d0d0' }}>AI 提供商</span>}
+              label={<span style={{ color: colors.textPrimary }}>AI 提供商</span>}
               name="storyProvider"
             >
               <Select options={providerOptions} />
@@ -1573,18 +1574,18 @@ const ArticleGenerate: React.FC = () => {
       <Col xs={24} lg={14}>
         <Card
           title={
-            <span style={{ color: '#e8e8e8' }}>
-              <FileTextOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+            <span style={{ color: colors.textPrimary }}>
+              <FileTextOutlined style={{ marginRight: 8, color: colors.accent }} />
               生成结果
             </span>
           }
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
             minHeight: 500,
           }}
-          headStyle={{ borderBottom: '1px solid #2a2a3e' }}
+          headStyle={{ borderBottom: `1px solid ${colors.border}` }}
         >
           {storyLoading ? (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -1632,7 +1633,7 @@ const ArticleGenerate: React.FC = () => {
                 renderItem={(item, index) => (
                   <List.Item
                     style={{
-                      borderBottom: '1px solid #2a2a3e',
+                      borderBottom: `1px solid ${colors.border}`,
                       padding: '12px 0',
                     }}
                   >
@@ -1641,12 +1642,12 @@ const ArticleGenerate: React.FC = () => {
                         <Tag color={index === 0 ? 'green' : 'purple'}>
                           {index === 0 ? '完整故事' : `第${item.series_order || index}章`}
                         </Tag>
-                        <Text strong style={{ color: '#e8e8e8', flex: 1 }}>
+                        <Text strong style={{ color: colors.textPrimary, flex: 1 }}>
                           {item.title}
                         </Text>
                         <Tag>{item.word_count} 字</Tag>
                       </div>
-                      <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
                         {item.summary?.substring(0, 100)}
                         {(item.summary?.length || 0) > 100 ? '...' : ''}
                       </Text>
@@ -1665,7 +1666,7 @@ const ArticleGenerate: React.FC = () => {
           ) : (
             <Empty
               description={
-                <Text style={{ color: '#666' }}>
+                <Text style={{ color: colors.textTertiary }}>
                   粘贴参考素材后，点击"开始生成故事"，AI 将自动生成多章节知乎盐选故事
                 </Text>
               }
@@ -1688,7 +1689,7 @@ const ArticleGenerate: React.FC = () => {
 
 /** 文件预览图标组件 */
 const FilePreviewIcon: React.FC = () => (
-  <FileTextOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+  <FileTextOutlined style={{ marginRight: 8, color: colors.primary }} />
 );
 
 export default ArticleGenerate;

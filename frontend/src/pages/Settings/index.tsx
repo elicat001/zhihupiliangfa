@@ -29,6 +29,7 @@ import {
   ChromeOutlined,
 } from '@ant-design/icons';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { colors } from '../../styles/theme';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -113,14 +114,14 @@ const Settings: React.FC = () => {
 
   /** 卡片通用样式 */
   const cardStyle: React.CSSProperties = {
-    background: '#1f1f1f',
-    borderColor: '#2a2a3e',
+    background: colors.bgContainer,
+    borderColor: colors.border,
     borderRadius: 12,
     marginBottom: 16,
   };
 
-  const headStyle: React.CSSProperties = {
-    borderBottom: '1px solid #2a2a3e',
+  const cardHeaderStyle: React.CSSProperties = {
+    borderBottom: `1px solid ${colors.border}`,
   };
 
   if (loading) {
@@ -141,26 +142,28 @@ const Settings: React.FC = () => {
   /** AI配置标签页 */
   const aiConfigContent = (
     <Card
+      className="card-header-gradient"
       title={
-        <span style={{ color: '#e8e8e8' }}>
-          <RobotOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+        <span style={{ color: colors.textPrimary }}>
+          <RobotOutlined style={{ marginRight: 8, color: colors.primary }} />
           AI API 配置
         </span>
       }
       style={cardStyle}
-      headStyle={headStyle}
+      styles={{ header: cardHeaderStyle }}
     >
       <Alert
         message="请确保已在对应AI服务商处获取API Key"
         type="info"
         showIcon
-        style={{ marginBottom: 20, background: '#111a2c', borderColor: '#15325b' }}
+        style={{ marginBottom: 20, background: 'rgba(22, 119, 255, 0.08)', borderColor: 'rgba(22, 119, 255, 0.2)' }}
       />
 
       <Form
         form={aiForm}
         layout="vertical"
         initialValues={settings.ai_config}
+        className="enhanced-form"
       >
         <Row gutter={16}>
           <Col xs={24} sm={12}>
@@ -190,7 +193,7 @@ const Settings: React.FC = () => {
         >
           <Input.Password
             placeholder="sk-xxxxxxxxxxxx"
-            style={{ background: '#141414', borderColor: '#2a2a3e' }}
+            style={{ background: colors.bgInput, borderColor: colors.border }}
           />
         </Form.Item>
 
@@ -201,7 +204,7 @@ const Settings: React.FC = () => {
         >
           <Input
             placeholder="https://api.openai.com/v1"
-            style={{ background: '#141414', borderColor: '#2a2a3e' }}
+            style={{ background: colors.bgInput, borderColor: colors.border }}
           />
         </Form.Item>
 
@@ -246,26 +249,28 @@ const Settings: React.FC = () => {
   /** 发文策略标签页 */
   const publishStrategyContent = (
     <Card
+      className="card-header-gradient"
       title={
-        <span style={{ color: '#e8e8e8' }}>
-          <SendOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+        <span style={{ color: colors.textPrimary }}>
+          <SendOutlined style={{ marginRight: 8, color: colors.success }} />
           发文策略配置
         </span>
       }
       style={cardStyle}
-      headStyle={headStyle}
+      styles={{ header: cardHeaderStyle }}
     >
       <Alert
         message="合理配置发文策略可以有效降低被风控的风险"
         type="warning"
         showIcon
-        style={{ marginBottom: 20, background: '#2b2111', borderColor: '#594214' }}
+        style={{ marginBottom: 20, background: 'rgba(250, 173, 20, 0.08)', borderColor: 'rgba(250, 173, 20, 0.2)' }}
       />
 
       <Form
         form={publishForm}
         layout="vertical"
         initialValues={settings.publish_strategy}
+        className="enhanced-form"
       >
         <Row gutter={16}>
           <Col xs={24} sm={12}>
@@ -346,7 +351,7 @@ const Settings: React.FC = () => {
             icon={<SaveOutlined />}
             loading={saving}
             onClick={handleSavePublish}
-            style={{ borderRadius: 6, background: '#52c41a', borderColor: '#52c41a' }}
+            style={{ borderRadius: 6, background: colors.success, borderColor: colors.success }}
           >
             保存发文策略
           </Button>
@@ -358,19 +363,21 @@ const Settings: React.FC = () => {
   /** 浏览器配置标签页 */
   const browserConfigContent = (
     <Card
+      className="card-header-gradient"
       title={
-        <span style={{ color: '#e8e8e8' }}>
-          <ChromeOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+        <span style={{ color: colors.textPrimary }}>
+          <ChromeOutlined style={{ marginRight: 8, color: colors.accent }} />
           浏览器配置
         </span>
       }
       style={cardStyle}
-      headStyle={headStyle}
+      styles={{ header: cardHeaderStyle }}
     >
       <Form
         form={browserForm}
         layout="vertical"
         initialValues={settings.browser_config}
+        className="enhanced-form"
       >
         <Row gutter={16}>
           <Col xs={24} sm={12}>
@@ -425,7 +432,7 @@ const Settings: React.FC = () => {
         >
           <Input
             placeholder="留空使用默认 User-Agent"
-            style={{ background: '#141414', borderColor: '#2a2a3e' }}
+            style={{ background: colors.bgInput, borderColor: colors.border }}
           />
         </Form.Item>
 
@@ -436,7 +443,7 @@ const Settings: React.FC = () => {
         >
           <Input
             placeholder="如 http://127.0.0.1:7890"
-            style={{ background: '#141414', borderColor: '#2a2a3e' }}
+            style={{ background: colors.bgInput, borderColor: colors.border }}
           />
         </Form.Item>
 
@@ -446,7 +453,7 @@ const Settings: React.FC = () => {
             icon={<SaveOutlined />}
             loading={saving}
             onClick={handleSaveBrowser}
-            style={{ borderRadius: 6, background: '#722ed1', borderColor: '#722ed1' }}
+            style={{ borderRadius: 6, background: colors.accent, borderColor: colors.accent }}
           >
             保存浏览器配置
           </Button>

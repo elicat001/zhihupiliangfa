@@ -36,6 +36,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { useAccountStore } from '../../stores/accountStore';
+import { colors } from '../../styles/theme';
 import type { Account, AccountLoginStatus } from '../../utils/types';
 
 const { Text, Paragraph } = Typography;
@@ -268,12 +269,12 @@ const AccountManage: React.FC = () => {
       <Col xs={24} sm={12} lg={8} xl={6} key={account.id}>
         <Card
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
             height: '100%',
           }}
-          bodyStyle={{ padding: 20 }}
+          styles={{ body: { padding: 20 } }}
           hoverable
         >
           {/* 头部：头像和状态 */}
@@ -301,7 +302,7 @@ const AccountManage: React.FC = () => {
                 style={{
                   background:
                     account.login_status === 'logged_in'
-                      ? '#1677ff'
+                      ? colors.primary
                       : '#434343',
                 }}
               />
@@ -310,7 +311,7 @@ const AccountManage: React.FC = () => {
               <Text
                 strong
                 style={{
-                  color: '#e8e8e8',
+                  color: colors.textPrimary,
                   fontSize: 15,
                   display: 'block',
                 }}
@@ -342,8 +343,8 @@ const AccountManage: React.FC = () => {
                   marginBottom: 6,
                 }}
               >
-                <Text style={{ color: '#666', fontSize: 13 }}>知乎UID</Text>
-                <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: 13 }}>知乎UID</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
                   {account.zhihu_uid}
                 </Text>
               </div>
@@ -355,8 +356,8 @@ const AccountManage: React.FC = () => {
                 marginBottom: 6,
               }}
             >
-              <Text style={{ color: '#666', fontSize: 13 }}>每日上限</Text>
-              <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+              <Text style={{ color: colors.textTertiary, fontSize: 13 }}>每日上限</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
                 {account.daily_limit} 篇
               </Text>
             </div>
@@ -367,10 +368,10 @@ const AccountManage: React.FC = () => {
                 marginBottom: 6,
               }}
             >
-              <Text style={{ color: '#666', fontSize: 13 }}>启用状态</Text>
+              <Text style={{ color: colors.textTertiary, fontSize: 13 }}>启用状态</Text>
               <Text
                 style={{
-                  color: account.is_active ? '#52c41a' : '#ff4d4f',
+                  color: account.is_active ? colors.success : colors.error,
                   fontSize: 13,
                 }}
               >
@@ -384,8 +385,8 @@ const AccountManage: React.FC = () => {
                 marginBottom: 6,
               }}
             >
-              <Text style={{ color: '#666', fontSize: 13 }}>创建时间</Text>
-              <Text style={{ color: '#a0a0a0', fontSize: 13 }}>
+              <Text style={{ color: colors.textTertiary, fontSize: 13 }}>创建时间</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
                 {new Date(account.created_at).toLocaleString('zh-CN')}
               </Text>
             </div>
@@ -454,12 +455,12 @@ const AccountManage: React.FC = () => {
             borderRadius: 8,
           }}
           message={
-            <span style={{ color: '#ff4d4f' }}>
+            <span style={{ color: colors.error }}>
               账号健康预警
             </span>
           }
           description={
-            <span style={{ color: '#a0a0a0' }}>
+            <span style={{ color: colors.textSecondary }}>
               {expiredAccounts.length > 0 && (
                 <span>
                   {expiredAccounts.length} 个账号登录已过期
@@ -488,7 +489,7 @@ const AccountManage: React.FC = () => {
           marginBottom: 16,
         }}
       >
-        <Text style={{ color: '#a0a0a0' }}>
+        <Text style={{ color: colors.textSecondary }}>
           共 {accounts.length} 个账号，
           {accounts.filter((a) => a.login_status === 'logged_in').length} 个在线
         </Text>
@@ -516,8 +517,8 @@ const AccountManage: React.FC = () => {
       ) : accounts.length === 0 ? (
         <Card
           style={{
-            background: '#1f1f1f',
-            borderColor: '#2a2a3e',
+            background: colors.bgContainer,
+            borderColor: colors.border,
             borderRadius: 12,
           }}
         >
@@ -540,7 +541,7 @@ const AccountManage: React.FC = () => {
         cancelText="取消"
         confirmLoading={loading}
       >
-        <Form form={addForm} layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={addForm} layout="vertical" className="enhanced-form" style={{ marginTop: 16 }}>
           <Form.Item
             label="昵称"
             name="nickname"
@@ -570,7 +571,7 @@ const AccountManage: React.FC = () => {
         cancelText="取消"
         confirmLoading={loading}
       >
-        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={editForm} layout="vertical" className="enhanced-form" style={{ marginTop: 16 }}>
           <Form.Item
             label="昵称"
             name="nickname"
@@ -619,7 +620,7 @@ const AccountManage: React.FC = () => {
               ),
               children: (
                 <div>
-                  <Paragraph style={{ color: '#a0a0a0', marginBottom: 16 }}>
+                  <Paragraph style={{ color: colors.textSecondary, marginBottom: 16 }}>
                     请从浏览器开发者工具中复制知乎的Cookie，粘贴到下方输入框。
                   </Paragraph>
                   <TextArea
@@ -628,8 +629,8 @@ const AccountManage: React.FC = () => {
                     value={cookieInput}
                     onChange={(e) => setCookieInput(e.target.value)}
                     style={{
-                      background: '#141414',
-                      borderColor: '#2a2a3e',
+                      background: colors.bgInput,
+                      borderColor: colors.border,
                       marginBottom: 16,
                       fontFamily: 'monospace',
                       fontSize: 12,
@@ -656,7 +657,7 @@ const AccountManage: React.FC = () => {
               ),
               children: (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                  <Paragraph style={{ color: '#a0a0a0', marginBottom: 16 }}>
+                  <Paragraph style={{ color: colors.textSecondary, marginBottom: 16 }}>
                     点击下方按钮获取二维码，使用知乎App扫码登录。
                   </Paragraph>
 
